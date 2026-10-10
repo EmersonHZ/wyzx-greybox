@@ -16,6 +16,7 @@
 html,body{height:100%}
 body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.6;margin:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 button{font:inherit;color:inherit;background:none;border:1px solid var(--line);border-radius:4px;padding:6px 12px;cursor:pointer}
 button:hover{border-color:var(--indigo)}
 button:focus-visible{outline:2px solid var(--indigo);outline-offset:2px}
@@ -600,7 +601,7 @@ function build3D(box,img){
   const mesh=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide}));
   const scene=new THREE.Scene(); const island=new THREE.Group(); island.add(mesh); scene.add(island);
   scene.add(new THREE.AmbientLight(0xffffff,0.6)); const sun=new THREE.DirectionalLight(0xfff0d8,1.25); sun.position.set(4,9,5); scene.add(sun); const fill=new THREE.DirectionalLight(0x8fb0ff,0.3); fill.position.set(-6,3,-4); scene.add(fill);
-  const camera=new THREE.PerspectiveCamera(34,1,0.1,100); camera.position.set(0,8.6,9.4); camera.lookAt(0,0.3,0);
+  const camera=new THREE.PerspectiveCamera(34,1,0.1,100); camera.position.set(0,9.8,10.6); camera.lookAt(0,0.2,0);
   const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true}); renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1)); box.prepend(renderer.domElement);
   function size(){ const w=box.clientWidth||600, h=box.clientHeight||560; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); } size(); window.addEventListener('resize',size);
   Object.assign(M3,{ok:true,hAt,island,camera,renderer,scene,W,D,YS,box,v:new THREE.Vector3()});

@@ -1,0 +1,774 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>文艺战线灰盒样机</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&display=swap">
+<style>
+/* 布局：放映厅式单屏切换（沙盘 / 章节 / 玩法库 / 档案 / 说明），玩法在覆盖层里打开并按章节串联；文书类元素用宣纸色块 */
+:root{
+  --bg:#14161a; --panel:#1d2026; --panel2:#262a31; --line:#363b43; --fg:#e8e6e0; --mute:#9a9da3;
+  --paper:#efe7d3; --paper2:#e2d8bf; --ink:#2a2622; --ink-mute:#6b655c;
+  --indigo:#7aa2d8; --indigo-soft:#233247; --cinnabar:#d0574a; --cinnabar-soft:#3a2320; --gold:#cfa85a; --gold-soft:#3a3120; --bamboo:#7fb29a; --bamboo-soft:#1f3328;
+  --display:"Noto Serif SC","Songti SC","STSong",serif;
+  --body:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  --mono:"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.6;margin:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;background:none;border:1px solid var(--line);border-radius:4px;padding:6px 12px;cursor:pointer}
+button:hover{border-color:var(--indigo)}
+button:focus-visible{outline:2px solid var(--indigo);outline-offset:2px}
+button.primary{background:var(--indigo-soft);border-color:var(--indigo)}
+button.ghost{border-color:transparent;color:var(--mute)}
+button[disabled]{opacity:.45;cursor:not-allowed}
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:8px 16px;flex-wrap:wrap}
+.top .brand{font-family:var(--display);font-weight:700;font-size:1.05rem}
+.top .brand small{font-family:var(--body);font-weight:400;color:var(--mute);margin-left:8px;font-size:.78rem}
+.top nav{display:flex;gap:4px;flex-wrap:wrap}
+.top nav button{padding:4px 10px;border-color:transparent}
+.top nav button.on{background:var(--panel2);border-color:var(--line)}
+.top .status{margin-left:auto;font-family:var(--mono);font-size:.8rem;color:var(--mute);display:flex;gap:12px;align-items:center}
+.top .status button{padding:2px 8px;font-size:.76rem}
+.wrap{max-width:1040px;margin:0 auto;padding-inline:16px;padding-block:18px 60px}
+.screen{display:none}.screen.on{display:block}
+h1{font-family:var(--display);font-size:1.5rem;margin:0 0 4px;text-wrap:balance}
+h2{font-family:var(--display);font-size:1.15rem;margin:22px 0 10px;text-wrap:balance}
+h3{font-size:.95rem;margin:14px 0 6px;color:var(--indigo)}
+p{margin:0 0 10px;max-width:70ch}
+.mute{color:var(--mute)}.small{font-size:.84rem}
+.eyebrow{font-size:.72rem;letter-spacing:.14em;color:var(--mute)}
+.tag{display:inline-block;font-size:.72rem;padding:1px 7px;border-radius:999px;background:var(--panel2);color:var(--mute);margin-right:4px;vertical-align:middle}
+.tag.orig{background:var(--indigo-soft);color:var(--indigo)}
+.tag.ext{background:var(--bamboo-soft);color:var(--bamboo)}
+.tag.gain{background:var(--gold-soft);color:var(--gold)}
+.tag.loss{background:var(--cinnabar-soft);color:var(--cinnabar)}
+.note{background:var(--panel);border-left:3px solid var(--indigo);padding:8px 12px;margin:10px 0;font-size:.9rem;max-width:72ch}
+.note.warn{border-left-color:var(--cinnabar)}
+/* 沙盘 */
+.hub{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px}
+@media (max-width:820px){.hub{grid-template-columns:1fr}}
+.mapbox{position:relative;background:#111a22;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.mapbox svg{display:block;width:100%;height:auto}
+.land{fill:#2a2e33;stroke:#4a5058;stroke-width:1.2}
+.river{fill:none;stroke:#3d5b78;stroke-width:1.6;stroke-linecap:round}
+.city{fill:#9a9da3}.city-l{fill:#c7c9cc;font-size:17px;font-family:var(--body)}
+.ev{cursor:pointer}
+.ev circle.dot{fill:var(--cinnabar)}
+.ev circle.ring{fill:none;stroke:var(--cinnabar);stroke-width:2;opacity:.7}
+.ev.pulse circle.ring{animation:pulse 1.8s ease-out infinite}
+@keyframes pulse{0%{r:8;opacity:.8}100%{r:26;opacity:0}}
+.ev.locked circle.dot{fill:#5a5f66}.ev.locked circle.ring{stroke:#5a5f66;opacity:.4}
+.ev.done circle.dot{fill:var(--gold)}.ev.done circle.ring{stroke:var(--gold)}
+.ev text{fill:#e8e6e0;font-size:16px;paint-order:stroke;stroke:#111a22;stroke-width:4px;font-family:var(--body)}
+.ev.locked text{fill:#8a8e95}
+.fog{fill:#0b1016;opacity:.55;pointer-events:none}
+.popup{position:absolute;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px;width:240px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:5}
+.popup .thumb{height:70px;border-radius:3px;background:linear-gradient(135deg,#2a3340,#4b4a3c);display:grid;place-items:center;color:var(--mute);font-size:.78rem;margin-bottom:6px}
+.popup b{font-family:var(--display)}
+.popup .x{position:absolute;top:4px;right:6px;border:none;padding:2px 6px;color:var(--mute)}
+.maplegend{position:absolute;left:10px;bottom:8px;font-size:.72rem;color:var(--mute);background:rgba(17,26,34,.8);padding:3px 8px;border-radius:3px}
+.inset{position:absolute;right:10px;bottom:8px;width:90px;height:66px;border:1px solid var(--line);background:#0e151c;border-radius:3px;font-size:.66rem;color:var(--mute);display:grid;place-items:center}
+.side{display:grid;gap:12px;align-content:start}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+.card h3{margin-top:0}
+.chlist{display:grid;gap:4px}
+.chlist div{display:grid;grid-template-columns:5.2em minmax(0,1fr);gap:8px;font-size:.84rem}
+.chlist .d{font-family:var(--mono);color:var(--mute)}
+.chlist .done{color:var(--gold)}.chlist .now{color:var(--cinnabar)}.chlist .lock{color:var(--mute)}
+.timeline{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 14px}
+.tl-years{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.74rem;color:var(--mute)}
+.tl-bar{position:relative;height:26px;margin:4px 0}
+.tl-bar input{width:100%;margin:0;position:absolute;top:0;left:0;height:26px}
+.tl-ticks{position:absolute;left:0;right:0;top:11px;height:4px;background:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px 10px);pointer-events:none}
+.tl-now{font-family:var(--display);font-size:1.2rem}
+.tl-row{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+/* 章节 */
+.scene{position:relative;aspect-ratio:16/9;max-width:100%;border-radius:6px;overflow:hidden;border:1px solid var(--line);background:#1b2230}
+.scene .bg{position:absolute;inset:0;transition:opacity .6s}
+.scene .ph{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#aeb3bb;font-size:.9rem;pointer-events:none;padding:0 20%}
+.scene .ph b{display:block;font-family:var(--display);font-size:1.3rem;color:#cfd3d9}
+.scene .snow{position:absolute;inset:0;background-image:radial-gradient(circle,rgba(255,255,255,.5) 1px,transparent 1.5px);background-size:90px 90px;animation:snow 9s linear infinite;opacity:.5;pointer-events:none}
+.scene .ash{position:absolute;inset:0;background-image:radial-gradient(circle,rgba(120,110,100,.7) 1px,transparent 1.6px);background-size:70px 70px;animation:snow 14s linear infinite;opacity:.6;pointer-events:none}
+@keyframes snow{from{background-position:0 0}to{background-position:30px 400px}}
+@media (prefers-reduced-motion:reduce){.scene .snow,.scene .ash,.ev.pulse circle.ring,.needle{animation:none!important}}
+.scene .figure{position:absolute;left:50%;bottom:0;width:22%;height:70%;transform:translateX(-50%);background:linear-gradient(180deg,#0f1114,#15171b);clip-path:polygon(38% 0,62% 0,70% 12%,66% 20%,90% 34%,100% 100%,0 100%,10% 34%,34% 20%,30% 12%);opacity:.9}
+.scene .ttl{position:absolute;left:14px;top:12px;font-family:var(--display);font-size:1.1rem;text-shadow:0 1px 4px #000}
+.scene .ttl small{display:block;font-family:var(--body);font-size:.74rem;color:#cfd3d9;letter-spacing:.08em}
+.scene .menu{position:absolute;right:12px;top:12px;font-size:.74rem;color:#cfd3d9;display:flex;gap:10px;text-shadow:0 1px 3px #000}
+.scene .ab{position:absolute;right:12px;top:40px;display:flex;gap:4px}
+.scene .ab button{font-size:.72rem;padding:2px 8px;background:rgba(20,22,26,.6)}
+.scene .ab button.on{border-color:var(--gold);color:var(--gold)}
+.hot{position:absolute;transform:translate(-50%,-50%);border:1px solid rgba(255,255,255,.55);background:rgba(20,22,26,.55);color:#fff;font-size:.74rem;padding:2px 8px;border-radius:999px;backdrop-filter:blur(2px)}
+.hot::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#fff;margin-right:6px;vertical-align:middle}
+.hot.seen{opacity:.5}
+.sub{position:absolute;left:0;right:0;bottom:17%;text-align:center;font-size:.9rem;text-shadow:0 1px 3px #000;padding:0 16px}
+.dlg{position:absolute;left:12px;right:12px;bottom:10px;background:rgba(20,22,26,.88);border:1px solid var(--line);border-radius:5px;padding:10px 14px;min-height:74px;max-height:62%;overflow:auto}
+.dlg .who{font-size:.74rem;color:var(--gold);letter-spacing:.06em}
+.dlg .txt{font-size:.95rem;min-height:1.6em;padding-right:70px}
+.dlg .act{position:absolute;right:10px;top:10px;display:flex;gap:6px}
+.dlg .act button{padding:3px 10px;font-size:.84rem}
+.choices{display:grid;gap:6px;margin-top:8px}
+.choices button{text-align:left;background:var(--panel2)}
+.choices button small{display:block;color:var(--mute);font-size:.76rem}
+@media (max-width:560px){.scene{aspect-ratio:auto;min-height:420px}.sub{bottom:auto;top:46%}.dlg{max-height:none}}
+.chapter-side{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:14px;margin-top:12px}
+@media (max-width:820px){.chapter-side{grid-template-columns:1fr}}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.steps span{font-family:var(--mono);font-size:.74rem;padding:2px 8px;border-radius:999px;background:var(--panel2);color:var(--mute)}
+.steps span.on{background:var(--indigo-soft);color:var(--indigo)}
+.steps span.ok{background:var(--gold-soft);color:var(--gold)}
+/* 玩法库 */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.mech{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px;cursor:pointer;display:grid;gap:4px;align-content:start;text-align:left}
+.mech:hover{border-color:var(--indigo)}
+.mech b{font-family:var(--display);font-size:1rem}
+.mech .ex{font-size:.82rem;color:var(--mute)}
+.mech .ref{font-size:.74rem;color:var(--mute)}
+.mech.done{border-color:var(--gold)}
+/* 覆盖层 */
+#ov{position:fixed;inset:0;background:rgba(5,7,10,.82);z-index:50;display:none;overflow:auto;padding:16px;padding-top:calc(16px + env(safe-area-inset-top,0px))}
+#ov.on{display:block}
+.panel{max-width:760px;margin:16px auto 40px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 18px 18px;position:relative}
+.panel .close{position:absolute;right:10px;top:10px;border:none;color:var(--mute);font-size:1.1rem}
+.panel h2{margin:0 26px 2px 0}
+.panel .lead{color:var(--mute);font-size:.88rem;margin-bottom:12px}
+.paper{background:var(--paper);color:var(--ink);border-radius:4px;padding:14px 16px;font-family:var(--display);line-height:1.8}
+.paper .muteink{color:var(--ink-mute)}
+.result{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px;display:grid;gap:6px}
+.result .gl{display:grid;grid-template-columns:4.5em minmax(0,1fr);gap:8px;font-size:.92rem}
+.result .gl b{font-weight:500}
+.result .gl .g{color:var(--gold)}.result .gl .l{color:var(--cinnabar)}.result .gl .r{color:var(--bamboo)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--bamboo-soft);color:var(--bamboo);border:1px solid var(--bamboo);padding:8px 14px;border-radius:6px;font-size:.9rem;z-index:60;max-width:90vw;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.on{opacity:1}
+/* 连线 */
+.link{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:10px 60px}
+.link svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.link .col{display:grid;gap:8px}
+.opt{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:8px 10px;text-align:left;font-family:var(--display)}
+.opt.sel{border-color:var(--indigo);background:var(--indigo-soft)}
+.opt.used{opacity:.6}
+/* 描线 / 区域 / 战况 */
+.svgbox{background:var(--paper2);border-radius:4px;overflow:hidden;touch-action:none}
+.svgbox svg{display:block;width:100%;height:auto}
+.wat{fill:#b9c9cf}.blk{fill:#d9cfb4;stroke:#a89c7e;stroke-width:1}
+.lbl{font-size:13px;fill:#4a4238;font-family:var(--body)}
+.lbl.big{font-size:15px;font-weight:600}
+.dash{fill:none;stroke:#6b655c;stroke-width:3;stroke-dasharray:7 6}
+.drawn{fill:none;stroke:#c23b2e;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}
+.reg{cursor:pointer;transition:fill .2s}.reg:hover{fill:#e9dfc5}.reg.pick{fill:#f1c5bf;stroke:#c23b2e;stroke-width:2}
+.mk{transition:transform 1.2s ease}
+.arrow{fill:none;stroke-width:3;stroke-linecap:round;opacity:.9}
+.arrow.jp{stroke:#4a5a8c}.arrow.cn{stroke:#c98a3a}
+/* 交付 / 流程 */
+.deliver{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:560px){.deliver{grid-template-columns:1fr}.link{grid-template-columns:1fr 1fr;gap:8px 24px}}
+.items,.people{display:grid;gap:8px;align-content:start}
+.item{background:var(--gold-soft);border:1px solid var(--gold);color:var(--gold);border-radius:4px;padding:8px 10px;cursor:grab;user-select:none;touch-action:none}
+.item.sel{outline:2px solid var(--gold)}
+.item.gone{opacity:.35;cursor:default}
+.person{background:var(--panel2);border:1px dashed var(--line);border-radius:4px;padding:10px;min-height:58px}
+.person.over{border-color:var(--gold);border-style:solid}
+.person b{font-family:var(--display)}
+.person .got{font-size:.82rem;color:var(--gold)}
+.flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:8px 0}
+@media (max-width:560px){.flow{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.slot{min-height:48px;border:1px dashed var(--line);border-radius:4px;display:grid;place-items:center;font-size:.84rem;color:var(--mute);cursor:pointer}
+.slot.filled{border-style:solid;color:var(--fg);background:var(--panel2)}
+.slot.bad{border-color:var(--cinnabar)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:4px 12px;cursor:pointer;user-select:none;touch-action:none}
+.chip.sel{border-color:var(--indigo);background:var(--indigo-soft)}
+.chip.used{opacity:.35;pointer-events:none}
+/* QTE */
+.qgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.qbox{aspect-ratio:1;border:1px solid var(--line);border-radius:4px;background:var(--panel2);display:grid;place-items:center;font-size:.8rem;color:var(--mute);cursor:pointer;transition:background .1s;user-select:none}
+.qbox.lit{background:#5a3a25;border-color:#e2a070;color:#fff}
+.qbox.saved{background:var(--gold-soft);border-color:var(--gold);color:var(--gold)}
+.qbox.lost{background:var(--cinnabar-soft);border-color:var(--cinnabar);color:var(--cinnabar)}
+.bar{height:6px;background:var(--panel2);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--indigo);width:100%;transition:width .2s linear}
+/* 对比 */
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:560px){.cmp{grid-template-columns:1fr}}
+.cmp .paper{cursor:pointer;border:2px solid transparent;min-height:150px}
+.cmp .paper:hover{border-color:var(--indigo)}
+.cmp .paper.pick{border-color:#c23b2e}
+/* 显影 */
+.revealbox{position:relative;border-radius:4px;overflow:hidden;touch-action:none}
+.revealbox canvas{display:block;width:100%;height:auto}
+/* 删改 */
+.sent{cursor:pointer;padding:0 2px;border-radius:2px}
+.sent:hover{background:rgba(194,59,46,.15)}
+.sent.cut{text-decoration:line-through;color:#a0493e;text-decoration-color:#c23b2e;text-decoration-thickness:2px}
+/* 时机 */
+.track{position:relative;height:40px;background:var(--panel2);border-radius:4px;overflow:hidden;margin:10px 0}
+.track .win{position:absolute;top:0;bottom:0;background:var(--bamboo-soft);border-left:1px solid var(--bamboo);border-right:1px solid var(--bamboo)}
+.needle{position:absolute;top:0;bottom:0;width:3px;background:var(--gold);left:0;animation:swing 2.4s linear infinite alternate}
+@keyframes swing{from{left:0}to{left:calc(100% - 3px)}}
+.track.stop .needle{animation-play-state:paused}
+/* 分配 */
+.alloc{display:grid;gap:8px}
+.alloc label{display:grid;grid-template-columns:5em minmax(0,1fr) 3em;gap:10px;align-items:center}
+.alloc input{width:100%}
+.alloc .v{font-family:var(--mono);text-align:right}
+/* 数据卡 */
+.datacard{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:8px 0}
+.datacard .k{background:var(--panel2);border-radius:4px;padding:8px 10px}
+.datacard .k .n{font-family:var(--display);font-size:1.3rem}
+.datacard .k .t{font-size:.76rem;color:var(--mute)}
+/* 档案 */
+.tabs{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap}
+.tabs button.on{background:var(--panel2)}
+.arch{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.arch .card.gone{opacity:.55}
+.arch .card.gone b::after{content:" · 永别";color:var(--cinnabar);font-size:.76rem}
+.flowmap{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.node{border:1px solid var(--line);border-radius:4px;padding:6px 10px;font-size:.84rem;color:var(--mute)}
+.node.lit{border-color:var(--gold);color:var(--gold)}
+.node.now{border-color:var(--indigo);color:var(--indigo)}
+.flowmap .ar{color:var(--mute)}
+table{border-collapse:collapse;width:100%;font-size:.86rem}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--mute);font-weight:500}
+.tbl{overflow-x:auto;margin:8px 0 14px}
+kbd{font-family:var(--mono);font-size:.78em;background:var(--panel2);border:1px solid var(--line);border-radius:3px;padding:0 5px}
+</style>
+
+<div class="top">
+  <div class="brand">文艺战线 <small>灰盒样机 0.2 · 上海卷八章 · 画面为占位，文案为示意</small></div>
+  <nav>
+    <button data-go="hub" class="on">沙盘</button>
+    <button data-go="chapter">章节</button>
+    <button data-go="lib">玩法库</button>
+    <button data-go="archive">档案</button>
+    <button data-go="about">说明</button>
+  </nav>
+  <div class="status"><span id="st-date">1931 · 2月上</span><span id="st-items">信物 0</span><button id="reset" title="清空存档，从 1931 年 2 月重来">重来</button></div>
+</div>
+
+<div class="wrap">
+
+<section class="screen on" id="scr-hub">
+  <div class="eyebrow">沙盘 · 一回合半个月 · 只能往前</div>
+  <h1>沙盘</h1>
+  <p class="mute small">上海卷八章，一条线走到底。点闪着的红点进章节；走过的变金，没到的是灰。</p>
+  <div class="hub">
+    <div>
+      <div class="mapbox" id="mapbox">
+        <svg id="map" viewBox="0 0 1000 933" role="img" aria-label="中国东部示意地图"></svg>
+        <div class="maplegend">示意图 · 只画海岸与江河 · 不画国界 · 租界/日占区待手绘</div>
+        <div class="inset">南海诸岛位</div>
+      </div>
+      <div class="timeline">
+        <div class="tl-row"><span class="tl-now" id="tl-now">1931 年 2 月上</span><span class="mute small">拖动只能往后走，走过的半月回不去。空白半月自动跳过。</span></div>
+        <div class="tl-bar"><div class="tl-ticks"></div><input type="range" id="tl" min="0" max="351" value="2" aria-label="时间轴"></div>
+        <div class="tl-years"><span>1931</span><span>1933</span><span>1935</span><span>1937</span><span>1939</span><span>1941</span><span>1943</span><span>1945</span></div>
+      </div>
+    </div>
+    <div class="side">
+      <div class="card"><h3>这一回合</h3><div id="hub-now"></div></div>
+      <div class="card"><h3>上海卷</h3><div class="chlist" id="chlist"></div></div>
+      <div class="card"><h3>路线</h3><div class="small">上海 → 武汉 → <span class="mute">延安 / 重庆（二选一，不横跳）</span> → 北归。换城就是出口事件，走了回不来。</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="scr-chapter">
+  <div class="eyebrow" id="ch-eyebrow">章节</div>
+  <h1 id="ch-h1">还没进章节</h1>
+  <p class="mute small" id="ch-intro">回沙盘点一个红点。</p>
+  <div class="scene" id="scene">
+    <div class="bg" id="bg"></div>
+    <div class="snow" id="fx" hidden></div>
+    <div class="figure" id="figure" title="化身背影位"></div>
+    <div class="ph" id="ph"><div><b>AI 视频位</b></div></div>
+    <div class="ttl" id="ttl"></div>
+    <div class="menu"><span>暂停</span><span>档案</span><span>声音</span><span>重来</span></div>
+    <div class="ab" id="ab" hidden></div>
+    <div id="hots"></div>
+    <div class="sub" id="sub"></div>
+    <div class="dlg" id="dlg"><div class="who" id="dlg-who"></div><div class="txt" id="dlg-txt"></div><div class="choices" id="dlg-choices" hidden></div><div class="act" id="dlg-act"><button class="primary" id="dlg-next">继续</button></div></div>
+  </div>
+  <div class="chapter-side">
+    <div class="card"><h3>这一章的骨架</h3><div class="steps" id="ch-steps"></div><div class="small mute">热点给材料，对话给人，两难给选择，玩法给手感，最后一张得失卡。没有「一键显示答案」。</div></div>
+    <div class="card"><h3>本章见闻</h3><div id="ch-facts" class="small mute">还没看。点场景里的热点。</div></div>
+  </div>
+</section>
+
+<section class="screen" id="scr-lib">
+  <div class="eyebrow">玩法库 · 8 种搬自参考作品 + 6 种延伸 · 都已装进章节</div>
+  <h1>玩法库</h1>
+  <p class="mute small">这里是单独试某一种的入口，不进主线存档。每种后面标了它装在上海卷第几章。</p>
+  <h2><span class="tag orig">原有</span>参考作品里的八种</h2>
+  <div class="grid" id="lib-orig"></div>
+  <h2><span class="tag ext">延伸</span>它没有、我们该有的六种</h2>
+  <div class="grid" id="lib-ext"></div>
+</section>
+
+<section class="screen" id="scr-archive">
+  <div class="eyebrow">档案 · 对应参考作品的「档案」+「我了解到」</div>
+  <h1>樟木箱</h1>
+  <div class="tabs"><button class="on" data-tab="items">信物</button><button data-tab="notes">手记</button><button data-tab="people">人物</button><button data-tab="flow">回溯</button></div>
+  <div id="arch-items" class="arch"></div>
+  <div id="arch-notes" hidden></div>
+  <div id="arch-people" class="arch" hidden></div>
+  <div id="arch-flow" hidden></div>
+</section>
+
+<section class="screen" id="scr-about">
+  <div class="eyebrow">说明</div>
+  <h1>这个灰盒在验证什么</h1>
+  <p>参考作品（网页版沉浸式近代史课件）的壳子能不能装下《文艺战线》的内容。壳子是它的：枢纽、章节、小题、档案四层。里子是我们的：没有标准答案，每个交互都落到得、失、信物、回响。</p>
+  <h2>上海卷八章与十四种玩法</h2>
+  <div class="tbl"><table><tr><th>章</th><th>时间</th><th>装了什么</th></tr>
+    <tr><td>一 龙华湿雪</td><td>1931.2</td><td>两难（留存）· 时机 · 连线</td></tr>
+    <tr><td>二 《北斗》</td><td>1931.9</td><td>删改 · 署名</td></tr>
+    <tr><td>三 一·二八</td><td>1932.1</td><td>显影 · 点击区域 · 描线</td></tr>
+    <tr><td>四 东方图书馆之火</td><td>1932.2</td><td>同机位前后两图 · 拖拽交付 · 分配</td></tr>
+    <tr><td>五 密印</td><td>1933.4</td><td>回响（手记对错）· 流程图</td></tr>
+    <tr><td>六 万国殡仪馆</td><td>1936.10</td><td>对比选择（上海卷出口，分岔）</td></tr>
+    <tr><td>七 淞沪</td><td>1937.8</td><td>QTE（只有留在上海才有）· 战况图（碎片层）</td></tr>
+    <tr><td>八 武汉</td><td>1938.1</td><td>回响 · 永别 · 结尾数据卡</td></tr>
+  </table></div>
+  <h2>史实口径（只用了这些）</h2>
+  <div class="tbl"><table>
+    <tr><th>日期</th><th>事</th></tr>
+    <tr><td>1931-02-07</td><td>柔石、胡也频、殷夫、冯铿、李伟森等在龙华被秘密杀害</td></tr>
+    <tr><td>1931-09</td><td>左联机关刊《北斗》创刊，丁玲主编；创刊号刊有德国版画家珂勒惠支的木刻《牺牲》</td></tr>
+    <tr><td>1932-01-28</td><td>一·二八事变，闸北战事</td></tr>
+    <tr><td>1932-02-01</td><td>商务印书馆东方图书馆被焚毁</td></tr>
+    <tr><td>1933-04</td><td>鲁迅《为了忘却的记念》在《现代》发表，写的是 1931 年 2 月那一夜</td></tr>
+    <tr><td>1936-10-19 / 22</td><td>鲁迅逝世；22 日自万国殡仪馆出殡，葬于万国公墓</td></tr>
+    <tr><td>1937-08-13 → 11-12</td><td>淞沪会战；8-14 炸弹落在租界南京路一带；8-23 日军川沙吴淞登陆；10-26 四行仓库；11-05 金山卫登陆；11-12 华界沦陷</td></tr>
+    <tr><td>1930 年代</td><td>米汤书写、碘酒显影的密写法；蜡纸油印是地下刊物的常用工艺</td></tr>
+  </table></div>
+  <p class="small mute">顾怀书（谷雨）、老周、阿芸、小何均为原创人物。柔石只做史载事，不给对白。两难与得失文案为示意，不是定稿。</p>
+  <h2>灰盒之外还要做的</h2>
+  <ul class="small">
+    <li>枢纽换成 Three.js 高程浮岛（Mapzen 瓦片），租界、日占区、根据地手绘 SVG 示意层。</li>
+    <li>场景视频：每章 1 张主图 + 4 到 5 镜图生视频，化身只给背影。</li>
+    <li>碎片层：二三十秒混剪位（战况图那一类）。</li>
+    <li>旁白与台词：TTS，锚定参考音。</li>
+    <li>把本页写死的八章搬进 chapters.json，改内容不改代码。</li>
+  </ul>
+</section>
+
+</div>
+
+<div id="ov"><div class="panel" id="panel"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/*__MAPDATA__*/
+</script>
+<script>
+// ---------- 状态 ----------
+const HALF = ['上','下'];
+const START_Y = 1931;
+function idx2date(i){ const y = START_Y + Math.floor(i/24); const m = Math.floor((i%24)/2)+1; const h = HALF[i%2]; return {y,m,h}; }
+function fmtDate(i){ const d=idx2date(i); return `${d.y} 年 ${d.m} 月${d.h}`; }
+function fmtShort(i){ const d=idx2date(i); return `${d.y} · ${d.m}月${d.h}`; }
+const DEFAULT = () => ({ v:2, dateIdx: 2, items: [], notes: [], done: {}, played: {}, results: {}, facts: {}, flags: {}, cur:null, people: {
+  zhou:{name:'老周',role:'印刷所工友',trust:1,alive:true},
+  yun:{name:'阿芸',role:'女学生，跑腿送稿',trust:0,alive:true},
+  he:{name:'小何',role:'跑街的，消息灵',trust:0,alive:true},
+  roushi:{name:'柔石',role:'左联作家（史载人物，只做史载事）',trust:0,alive:false,gone:'1931-02-07 龙华'},
+  linxue:{name:'林雪',role:'镜中人 · 东北（碎片出现）',trust:0,alive:true,hidden:true},
+  yemei:{name:'叶湄',role:'镜中人 · 南天（碎片出现）',trust:0,alive:true,hidden:true},
+  zhou2:{name:'周先生',role:'镜中人 · 列岛（碎片出现）',trust:0,alive:true,hidden:true},
+}});
+let S = DEFAULT();
+try{ const s=localStorage.getItem('wyzx-grey'); if(s){ const o=JSON.parse(s); if(o.v===2) S=Object.assign(DEFAULT(),o); } }catch(e){}
+function save(){ try{ localStorage.setItem('wyzx-grey', JSON.stringify(S)); }catch(e){} }
+function $(q,el=document){ return el.querySelector(q); }
+function $$(q,el=document){ return [...el.querySelectorAll(q)]; }
+function el(tag,attrs={},...kids){ const e=document.createElement(tag); for(const k in attrs){ if(k==='class') e.className=attrs[k]; else if(k==='html') e.innerHTML=attrs[k]; else if(k.startsWith('on')) e.addEventListener(k.slice(2),attrs[k]); else e.setAttribute(k,attrs[k]); } for(const c of kids){ if(c==null||c===false) continue; e.append(c.nodeType?c:document.createTextNode(c)); } return e; }
+let toastT; function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),2600); }
+function gain(item, echo){ if(!item) return; if(!S.items.find(i=>i.name===item)){ S.items.push({name:item, when:fmtShort(S.dateIdx), echo:echo||null}); toast('信物入箱：'+item); } save(); renderStatus(); }
+function note(text){ S.notes.push({when:fmtShort(S.dateIdx), text}); save(); }
+function renderStatus(){ $('#st-date').textContent=fmtShort(S.dateIdx); $('#st-items').textContent='信物 '+S.items.length; $('#tl').value=S.dateIdx; $('#tl-now').textContent=fmtDate(S.dateIdx); }
+$('#reset').addEventListener('click',()=>{ if($('#reset').dataset.arm){ try{ localStorage.removeItem('wyzx-grey'); }catch(e){} location.reload(); } else { $('#reset').dataset.arm='1'; $('#reset').textContent='再点一次确认重来'; setTimeout(()=>{ delete $('#reset').dataset.arm; $('#reset').textContent='重来'; },3000); } });
+
+// ---------- 导航 ----------
+function go(id){ $$('.screen').forEach(s=>s.classList.toggle('on', s.id==='scr-'+id)); $$('.top nav button').forEach(b=>b.classList.toggle('on', b.dataset.go===id)); if(id==='archive') renderArchive(); if(id==='lib') renderLib(); if(id==='hub'){ renderMap(); hubNow(); } window.scrollTo(0,0); }
+$$('.top nav button').forEach(b=>b.addEventListener('click',()=>{ if(b.dataset.go==='chapter'){ resumeChapter(); return; } go(b.dataset.go); }));
+
+// ---------- 章节数据（上海卷八章） ----------
+const SCENES = {
+  longhua:{ bg:'radial-gradient(ellipse at 70% 20%,rgba(255,220,150,.12),transparent 40%),linear-gradient(180deg,#1b2230 0%,#232a36 55%,#3a3d44 56%,#2b2e34 100%)', fx:'snow', label:'龙华 · 1931 年 2 月 8 日清晨 · 雪后 · 过肩背影 · 5 秒循环' },
+  beidou:{ bg:'radial-gradient(ellipse at 20% 30%,rgba(255,200,120,.18),transparent 45%),linear-gradient(180deg,#2a2419 0%,#1f1b14 60%,#15120e 100%)', fx:null, label:'编辑部阁楼 · 1931 年 9 月 · 雨夜 · 桌灯 · 清样' },
+  yierba:{ bg:'radial-gradient(ellipse at 80% 70%,rgba(255,90,30,.35),transparent 50%),linear-gradient(180deg,#0e1016 0%,#1a1418 60%,#2a1a14 100%)', fx:null, label:'闸北 · 1932 年 1 月 28 日夜 · 火光 · 枪声 · 窗' },
+  library:{ bg:'linear-gradient(180deg,#5b5a55 0%,#8a877e 45%,#4a4742 46%,#33312d 100%)', fx:'ash', label:'宝山路 · 1932 年 2 月 1 日 · 白天 · 纸灰 · 同机位两张图' },
+  miyin:{ bg:'radial-gradient(ellipse at 50% 40%,rgba(255,210,140,.2),transparent 40%),linear-gradient(180deg,#15130f 0%,#1f1a13 100%)', fx:null, label:'印刷所后间 · 1933 年 4 月 · 夜 · 油印机' },
+  funeral:{ bg:'linear-gradient(180deg,#3a3d42 0%,#55585c 50%,#2c2e31 51%,#1e2022 100%)', fx:null, label:'胶州路 · 1936 年 10 月 22 日清晨 · 人群 · 挽联' },
+  songhu:{ bg:'radial-gradient(ellipse at 60% 30%,rgba(255,120,40,.3),transparent 45%),linear-gradient(180deg,#1a1c22 0%,#2a2420 60%,#1c1a18 100%)', fx:'ash', label:'苏州河南岸 · 1937 年 8 月 · 隔河看火' },
+  xian:{ bg:'linear-gradient(180deg,#4a4030 0%,#6b5a40 50%,#3a3226 51%,#2a241c 100%)', fx:null, label:'西安 · 1937 年 8 月 · 报馆门口 · 电讯' },
+  wuhan:{ bg:'linear-gradient(180deg,#2b3540 0%,#3f4a55 50%,#273038 51%,#1c2227 100%)', fx:null, label:'汉口码头 · 1938 年 1 月 · 冬 · 船' },
+};
+const CH = [
+ { id:'longhua', idx:2, city:'上海', title:'龙华湿雪', sub:'1931.02 · 上海', line:'1931 年 2 月 7 日夜，五位左联作家在龙华被秘密杀害。第二天早上，稿子在老周手里。', scene:'longhua', figure:true,
+   hots:[{x:18,y:62,t:'墙角的雪',f:'雪是昨夜下的，今早化了一半，墙根有车辙，往龙华方向。'},{x:78,y:48,t:'一张传单',f:'传单被雪打湿，字还能认：是左联的油印件，背面有半行铅笔字。'},{x:60,y:22,t:'远处的灯',f:'印刷所的灯一夜没灭。老周在。'}],
+   script:[
+     {who:'旁白',txt:'1931 年 2 月 8 日，清晨。昨夜龙华的枪声，今天只在几个人的嘴里传。'},
+     {who:'旁白',txt:'你是顾怀书，笔名谷雨。你认识的那位，也在那五个人里。'},
+     {who:'老周 · 印刷所工友',txt:'「昨晚被带走的五个，去了龙华。消息是跑街的小何带回来的。」'},
+     {who:'老周',txt:'「他留下的稿子，在我这儿。你拿，还是我烧？」',choice:[
+        {t:'拿走，交给刊物发表',s:'留存型 · 九月有新刊物要创刊，有地方登',r:{g:'一叠带体温的稿子',l:'老周从此怕你连累他',item:'未署名的稿子'},flag:'keep-pub'},
+        {t:'拿走，藏进樟木箱',s:'留存型 · 不发表，先活着',r:{g:'稿子',l:'它要等很多年才见天日',item:'未署名的稿子'},flag:'keep-box'},
+        {t:'让他烧',s:'纪律型 · 人比纸要紧',r:{g:'老周信你',l:'那些字没有了',trust:'zhou'},flag:'burn'}]},
+     {who:'旁白',txt:'小何在门口。他知道名单上还有谁。什么时候开口问，是个问题。',mech:'timing'},
+     {who:'旁白',txt:'雪在化。把今天看见的理一理，写进手记。',mech:'link'},
+   ]},
+ { id:'beidou', idx:17, city:'上海', title:'《北斗》', sub:'1931.09 · 上海', line:'九月，左联的刊物创刊。你那篇悼文可以登，但检查员要先看。', scene:'beidou', figure:true,
+   hots:[{x:30,y:60,t:'桌上的清样',f:'清样上还有油墨味。第三句被人用铅笔轻轻圈了一下。'},{x:72,y:35,t:'一幅木刻',f:'德国人刻的，题目叫《牺牲》。编辑说，懂的人知道它纪念谁。'},{x:85,y:75,t:'楼梯口的脚步',f:'脚步在二楼停了停，又下去了。阿芸说那是房东。'}],
+   script:[
+     {who:'旁白',txt:'1931 年 9 月。左联的刊物《北斗》创刊，丁玲主编。创刊号上有一幅德国木刻，叫《牺牲》。'},
+     {who:'阿芸 · 女学生',txt:'「你那篇悼文，编辑说可以登。但检查员要先看。」'},
+     {who:'阿芸',txt:'「划掉几句吧。划多了没意思，划少了整期都出不来。」',mech:'censor'},
+     {who:'阿芸',txt:'「还有，署名呢？」',mech:'sign'},
+   ]},
+ { id:'yierba', idx:25, city:'上海', title:'一·二八', sub:'1932.01 · 闸北', line:'枪声从闸北起。印刷所离前线三条街。门缝下塞进来一张白纸。', scene:'yierba', figure:true,
+   hots:[{x:22,y:70,t:'门缝下的信',f:'一张白纸，什么也没写。老周的字只有一种写法。'},{x:80,y:30,t:'窗外的火光',f:'宝山路方向。火光一跳一跳，枪声比火光慢半拍。'},{x:55,y:80,t:'铅字箱',f:'四十斤。一个人搬得动，跑不动。'}],
+   script:[
+     {who:'旁白',txt:'1932 年 1 月 28 日夜。枪声从闸北起。印刷所离前线三条街。'},
+     {who:'旁白',txt:'门缝下塞进来一张白纸。老周的字只有一种写法：米汤。碘酒在抽屉里。',mech:'reveal'},
+     {who:'小何 · 跑街的',txt:'「别回印刷所。今晚先找个地方住下。」',mech:'region'},
+     {who:'小何',txt:'「明早天亮前得出闸北。哪条路，你自己画。」',mech:'trace'},
+   ]},
+ { id:'library', idx:26, city:'上海', title:'东方图书馆之火', sub:'1932.02 · 宝山路', line:'2 月 1 日，商务印书馆的东方图书馆烧了。纸灰下了一上午。', scene:'library', figure:true, ab:['前一天','2 月 1 日'],
+   hots:[{x:50,y:25,t:'飘下来的纸灰',f:'纸灰落在袖子上，还能看出一行字的影子。四十多万册。'},{x:20,y:60,t:'排队的人',f:'没人排队买东西。他们在看。'},{x:80,y:65,t:'老周的板车',f:'板车上盖着油布。油布下面是铅字箱，和一个樟木箱。'}],
+   script:[
+     {who:'旁白',txt:'1932 年 2 月 1 日。商务印书馆的东方图书馆烧了，纸灰下了一上午。右上角可以切前一天和这一天。'},
+     {who:'旁白',txt:'你手上有三样东西，身边有三个人。东西只能给一次。',mech:'deliver'},
+     {who:'老周',txt:'「月底了。房租、纸、你去武汉的路费，总共要二十四。」'},
+     {who:'老周',txt:'「你手里二十。」',mech:'allocate'},
+   ]},
+ { id:'miyin', idx:54, city:'上海', title:'密印', sub:'1933.04 · 印刷所后间', line:'一本杂志上登了一篇文章，写的是两年前二月的那一夜。老周说，这篇得多印几份。', scene:'miyin', figure:true,
+   hots:[{x:35,y:65,t:'油印机',f:'滚筒上的油墨干了一半。蜡纸一夜能刻三张。'},{x:70,y:40,t:'一份杂志',f:'《现代》。翻到那一篇，题目叫《为了忘却的记念》。'},{x:15,y:35,t:'蜡纸',f:'一盒十张。刻坏一张少一张。'}],
+   script:[
+     {who:'旁白',txt:'1933 年 4 月。一本杂志上登了一篇文章，题目叫《为了忘却的记念》。写的是两年前二月的那一夜。'},
+     {who:'旁白',txt:'',dyn:'noteCheck'},
+     {who:'老周',txt:'「这篇得多印几份。蜡纸我刻，顺序你排。」',mech:'flow'},
+   ]},
+ { id:'funeral', idx:139, city:'上海', title:'万国殡仪馆', sub:'1936.10 · 胶州路', line:'22 日出殡。扶柩名单上没有你的名字，口袋里有一张今天北上的车票。', scene:'funeral', figure:true,
+   hots:[{x:25,y:40,t:'挽联',f:'挽联从二楼挂到地。你认得其中两副的字。'},{x:65,y:70,t:'队伍',f:'队伍从胶州路排到了街口。没有人说话。'},{x:85,y:35,t:'口袋里的车票',f:'沪宁线，今天。下一趟，半个月后。'}],
+   script:[
+     {who:'旁白',txt:'1936 年 10 月 22 日。先生十九日走的。今天出殡，从万国殡仪馆到万国公墓。'},
+     {who:'阿芸',txt:'「队伍下午两点走。你来不来？」'},
+     {who:'旁白',txt:'口袋里有一张今天的北上车票。两张纸并排放，选一张。',mech:'compare'},
+   ]},
+ { id:'songhu', idx:158, city:'上海', title:'淞沪', sub:'1937.08 → 11', line:'闸北又响了。这次不是一夜，是三个月。碎片层。', scene:'songhu', figure:true, branch:true,
+   hots:[{x:60,y:30,t:'对岸的火',f:'闸北的火烧了三天三夜。租界这边的人站在河边看。'},{x:20,y:65,t:'号外',f:'报童一天跑六趟。每一趟的标题都比上一趟短。'},{x:82,y:72,t:'阿芸的信',f:'信很短：「底片我去拿。」'}],
+   script:[]},
+ { id:'wuhan', idx:168, city:'武汉', title:'武汉', sub:'1938.01 · 汉口', line:'上海卷到这里为止。樟木箱打开，清点。', scene:'wuhan', figure:true,
+   hots:[{x:30,y:70,t:'码头',f:'江水是黄的。船一天三班，每班都满。'},{x:70,y:60,t:'一盒铅字',f:'从闸北带出来的那盒，少了四个字。'},{x:50,y:35,t:'樟木箱',f:'箱子上贴着上海的火车票根。'}],
+   script:[]},
+];
+const LOCKED = [
+  {id:'yanan', city:'延安', idx:186, title:'延安线', line:'去了回不来。'},
+  {id:'chongqing', city:'重庆', idx:200, title:'重庆线', line:'去了回不来。'},
+  {id:'hengyang', city:'衡阳', idx:329, title:'衡阳保卫战（碎片）', line:'正面战场大场面，混剪位。'},
+  {id:'north', city:'北平', idx:350, title:'北归', line:'终章。'},
+];
+function chIndex(id){ return CH.findIndex(c=>c.id===id); }
+function chState(c){ if(S.done[c.id]) return 'done'; const i=chIndex(c.id); if(i===0||S.done[CH[i-1].id]) return 'open'; return 'locked'; }
+// 动态脚本（按存档分岔）
+function dynScript(ch){
+  if(ch.id==='songhu'){
+    if(S.flags.exit==='B'){ ch.sceneUse='xian'; ch.sub='1937.08 · 西安'; const yun=S.people.yun.trust>=1; return [
+      {who:'旁白',txt:'1937 年 8 月 13 日，上海又响了。你在西安，消息晚两天到。'},
+      {who:'旁白',txt: yun?'阿芸的信里说，印刷所的底片她抢出来了大半。她记得你说过底片比铅字要紧。':'阿芸的信里说，印刷所的底片她去拿过，只抢出几盒，其余烧了。你不在，没人知道哪几盒要紧。',dynFlag: yun?'yunSaved':'yunLost'},
+      {who:'旁白',txt:'后面的三个月，你在报纸上看。',mech:'campaign'} ]; }
+    ch.sceneUse='songhu'; ch.sub='1937.08 → 11 · 苏州河南岸'; return [
+      {who:'旁白',txt:'1937 年 8 月 13 日，闸北又响了。这次不是一夜，是三个月。'},
+      {who:'旁白',txt:'8 月 14 日，炸弹落在了租界里的南京路。你在暗房，底片还在。',mech:'qte'},
+      {who:'旁白',txt:'后面的三个月，你隔着一条苏州河看。',mech:'campaign'} ];
+  }
+  if(ch.id==='wuhan'){ const he=S.flags.heInWuhan; const b=S.flags.exit==='B'; return [
+      {who:'旁白',txt: b?'1938 年 1 月，汉口。你从西安下来接老周和阿芸。上海卷到这里为止。':'1938 年 1 月，汉口。上海卷到这里为止。'},
+      he?{who:'小何',txt:'「我在码头等了三天。那二十块钱，船票还剩一张。」'}:{who:'旁白',txt:'码头上没人等你。小何没来武汉，那二十块钱当初没给他。'},
+      {who:'旁白',txt:'樟木箱打开，清点。',mech:'summary'} ]; }
+  return ch.script;
+}
+let CUR=null;
+function enterChapter(ch){ if(ch.idx>S.dateIdx){ S.dateIdx=ch.idx; } if(!S.cur||S.cur.id!==ch.id) S.cur={id:ch.id,i:0}; S.facts[ch.id]=S.facts[ch.id]||[]; save(); renderStatus(); go('chapter'); renderChapter(ch); }
+function resumeChapter(){ if(S.cur){ const ch=CH.find(c=>c.id===S.cur.id); if(ch&&!S.done[ch.id]){ go('chapter'); renderChapter(ch); return; } } const open=CH.find(c=>chState(c)==='open'); if(open){ enterChapter(open); } else { go('chapter'); } }
+function renderChapter(ch){
+  CUR={ch, lines:dynScript(ch), i:(S.cur&&S.cur.id===ch.id)?S.cur.i:0};
+  const sc=SCENES[ch.sceneUse||ch.scene]; $('#bg').style.background=sc.bg; const fx=$('#fx'); fx.hidden=!sc.fx; fx.className=sc.fx||'snow'; $('#figure').hidden=!ch.figure; $('#ph').innerHTML=`<div><b>AI 视频位</b>${sc.label}</div>`;
+  $('#ttl').innerHTML=`${ch.title}<small>${ch.sub}</small>`; $('#ch-eyebrow').textContent=`章节 · 上海卷 · 第${'一二三四五六七八'[chIndex(ch.id)]}件`; $('#ch-h1').textContent=ch.title; $('#ch-intro').textContent=ch.line;
+  const ab=$('#ab'); ab.innerHTML=''; ab.hidden=!ch.ab; $('#bg').style.filter=''; if(ch.ab){ ch.ab.forEach((t,i)=>{ const b=el('button',{class:i?'on':'',onclick:()=>{ $$('button',ab).forEach(x=>x.classList.remove('on')); b.classList.add('on'); $('#bg').style.filter=i?'':'sepia(.3) brightness(1.25)'; $('#ph').querySelector('div').innerHTML=`<b>AI 图位</b>${i?'2 月 1 日 · 纸灰 · 废墟':'前一天 · 同机位 · 图书馆还在'}`; }},t); ab.append(b); }); }
+  const hs=$('#hots'); hs.innerHTML=''; ch.hots.forEach((h,k)=>{ const b=el('button',{class:'hot'+((S.facts[ch.id]||[]).includes(k)?' seen':''),style:`left:${h.x}%;top:${h.y}%`,onclick:()=>{ b.classList.add('seen'); if(!S.facts[ch.id].includes(k)) S.facts[ch.id].push(k); save(); $('#sub').textContent=h.f; renderFacts(ch); }},h.t); hs.append(b); });
+  $('#sub').textContent=''; renderFacts(ch); renderSteps(ch); showLine();
+}
+function renderSteps(ch){ const names=['场景 / 热点','对话']; CUR.lines.forEach(l=>{ if(l.choice) names.push('两难'); if(l.mech){ const m=MECHS.find(m=>m.id===l.mech); names.push(m?m.short:'清点'); } }); names.push('得 / 失','回沙盘'); const s=$('#ch-steps'); s.innerHTML=''; names.forEach(n=>s.append(el('span',{},n))); stepTo(0); }
+function stepTo(i){ $$('#ch-steps span').forEach((s,k)=>{ s.classList.toggle('on',k===i); s.classList.toggle('ok',k<i); }); }
+function stepByLine(){ let n=1; for(let k=0;k<CUR.i;k++){ const l=CUR.lines[k]; if(l.choice) n++; if(l.mech) n++; } stepTo(n); }
+function renderFacts(ch){ const n=$('#ch-facts'); const f=S.facts[ch.id]||[]; if(!f.length){ n.textContent='还没看。点场景里的热点。'; return; } n.innerHTML=f.map(k=>`<div><b>${ch.hots[k].t}</b> · ${ch.hots[k].f}</div>`).join(''); }
+let typing=null;
+function typeText(node,txt,cb){ clearInterval(typing); node.textContent=''; let i=0; typing=setInterval(()=>{ node.textContent=txt.slice(0,++i); if(i>=txt.length){ clearInterval(typing); cb&&cb(); } },20); }
+function showLine(){
+  const L=CUR.lines[CUR.i]; const nextB=$('#dlg-next'); const chs=$('#dlg-choices'); chs.hidden=true; chs.innerHTML=''; nextB.hidden=false; nextB.textContent='继续';
+  if(!L){ chapterOutro(); return; }
+  if(L.dyn==='noteCheck'){ const w=S.flags.noteWrong; L.txt=w?`你翻出当年的手记对了一遍。你把「${w}」记错了，文章里是对的。回响：手记上的错处，两年后被一篇文章改了过来。`:'你翻出当年的手记对了一遍。日期、地点、人，都对得上。回响：你记对了，别人也记住了。'; }
+  if(L.dynFlag) S.flags[L.dynFlag]=true;
+  $('#dlg-who').textContent=L.who; stepByLine();
+  typeText($('#dlg-txt'),L.txt,()=>{ if(L.choice&&!S.results[CUR.ch.id+':choice']){ nextB.hidden=true; chs.hidden=false; L.choice.forEach(c=>chs.append(el('button',{onclick:()=>pickChoice(L,c)},c.t,el('small',{},c.s)))); } if(L.mech){ const m=MECHS.find(m=>m.id===L.mech); nextB.textContent=L.mech==='summary'?'打开樟木箱':'开始 · '+m.short; } });
+}
+function pickChoice(L,c){ $$('button',$('#dlg-choices')).forEach(b=>b.disabled=true); gain(c.r.item); if(c.r.trust) S.people[c.r.trust].trust+=1; S.flags[CUR.ch.id+'Choice']=c.flag; S.results[CUR.ch.id+':choice']={title:'两难：'+c.t,g:c.r.g,l:c.r.l,item:c.r.item||null}; note(CUR.ch.title+' · '+c.t+'。得「'+c.r.g+'」，失「'+c.r.l+'」。'); const host=$('#dlg-choices'); host.append(el('div',{class:'result'}, el('div',{class:'gl'},el('b',{class:'g'},'得'),el('span',{},c.r.g)), el('div',{class:'gl'},el('b',{class:'l'},'失'),el('span',{},c.r.l)))); $('#dlg-next').hidden=false; save(); }
+$('#dlg-next').addEventListener('click',()=>{ if(!CUR) return; const L=CUR.lines[CUR.i]; if(L&&L.choice&&!S.results[CUR.ch.id+':choice']) return; if(L&&L.mech){ openMech(L.mech,{chapter:true,done:()=>{ CUR.i++; S.cur={id:CUR.ch.id,i:CUR.i}; save(); showLine(); }}); return; } CUR.i++; S.cur={id:CUR.ch.id,i:CUR.i}; save(); showLine(); });
+function chapterOutro(){ const ch=CUR.ch; stepTo($$('#ch-steps span').length-2); $('#dlg-who').textContent='这一章'; $('#dlg-txt').textContent='得与失，都进樟木箱。'; const chs=$('#dlg-choices'); chs.hidden=false; chs.innerHTML=''; const rs=Object.keys(S.results).filter(k=>k.startsWith(ch.id+':')).map(k=>S.results[k]); const box=el('div',{class:'result'}); if(!rs.length) box.append(el('div',{class:'small mute'},'这一章没有留下得失记录。')); rs.forEach(r=>{ box.append(el('div',{class:'gl'},el('b',{},r.title||''),el('span',{},el('span',{style:'color:var(--gold)'},'得 '+r.g),el('br'),el('span',{style:'color:var(--cinnabar)'},'失 '+r.l),r.item?el('span',{},el('br'),'信物 '+r.item):null))); }); chs.append(box); $('#dlg-next').hidden=true; chs.append(el('button',{class:'primary',style:'margin-top:8px',onclick:()=>finishChapter(ch)},'回到沙盘')); }
+function finishChapter(ch){ S.done[ch.id]=true; S.cur=null; const i=chIndex(ch.id); const nxt=CH[i+1]; S.dateIdx=Math.max(S.dateIdx, nxt?nxt.idx:ch.idx+1); save(); renderStatus(); go('hub'); toast(nxt?('下一件：'+nxt.title+' · '+fmtDate(nxt.idx)):'上海卷完。延安 / 重庆在灰盒里还没开。'); }
+
+// ---------- 沙盘 ----------
+const CITIES = [['上海',121.47,31.23],['南京',118.78,32.06],['杭州',120.15,30.27],['武汉',114.3,30.6],['重庆',106.55,29.56],['延安',109.49,36.59],['西安',108.9,34.3],['北平',116.4,39.9],['广州',113.26,23.13],['香港',114.17,22.3],['长沙',112.97,28.2],['衡阳',112.6,26.9],['桂林',110.3,25.3],['昆明',102.7,25.0]];
+function P(lon,lat){ return [ (lon-MAPDATA.lon0)*MAPDATA.cos*MAPDATA.s, (MAPDATA.lat1-lat)*MAPDATA.s ]; }
+function cityXY(name){ const c=CITIES.find(c=>c[0]===name); return P(c[1],c[2]); }
+function allEvents(){ return CH.map(c=>Object.assign({},c,{st:chState(c)})).concat(LOCKED.map(l=>Object.assign({},l,{st:'locked'}))); }
+function renderMap(){
+  const svg=$('#map'); svg.innerHTML=''; const ns='http://www.w3.org/2000/svg';
+  const mk=(t,a)=>{ const n=document.createElementNS(ns,t); for(const k in a) n.setAttribute(k,a[k]); return n; };
+  const g=mk('g',{}); svg.append(g);
+  for(const poly of MAPDATA.land){ g.append(mk('path',{class:'land', d:'M'+poly.map(p=>p.join(',')).join('L')+'Z'})); }
+  for(const r of MAPDATA.rivers){ g.append(mk('path',{class:'river', d:'M'+r.p.map(p=>p.join(',')).join('L')})); }
+  g.append(mk('path',{class:'fog', d:'M0,0 L520,0 L520,420 L300,520 L0,560 Z'}));
+  for(const c of CITIES){ const [x,y]=P(c[1],c[2]); g.append(mk('circle',{class:'city',cx:x,cy:y,r:3})); const t=mk('text',{class:'city-l',x:x+7,y:y+5}); t.textContent=c[0]; g.append(t); }
+  const byCity={}; allEvents().forEach(e=>{ (byCity[e.city]=byCity[e.city]||[]).push(e); });
+  for(const city in byCity){ const list=byCity[city]; const [cx,cy]=cityXY(city);
+    list.forEach((e,i)=>{ const ang=-Math.PI/2 + i*(Math.PI*2/Math.max(list.length,1)); const rad=list.length>1?(list.length>4?44:34):16; const x=cx+Math.cos(ang)*rad, y=cy+Math.sin(ang)*rad;
+      const ge=mk('g',{class:'ev '+e.st+(e.st==='open'?' pulse':''),tabindex:0,role:'button','aria-label':e.title});
+      ge.append(mk('circle',{class:'ring',cx:x,cy:y,r:8})); ge.append(mk('circle',{class:'dot',cx:x,cy:y,r:6}));
+      const t=mk('text',{x:x+10,y:y-8}); t.textContent=e.title; if(list.length>4&&e.st!=='open') t.setAttribute('opacity','.55'); ge.append(t);
+      const open=()=>showPopup(e,x,y); ge.addEventListener('click',open); ge.addEventListener('keydown',ev=>{ if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); open(); } });
+      g.append(ge); });
+  }
+}
+function showPopup(e,x,y){
+  $$('.popup').forEach(p=>p.remove()); const box=$('#mapbox'); const r=box.getBoundingClientRect(); const sx=r.width/1000, sy=r.height/933;
+  const p=el('div',{class:'popup'}, el('button',{class:'x','aria-label':'关闭',onclick:()=>p.remove()},'×'), el('div',{class:'thumb'}, e.st==='locked'?'未到达 · 战争迷雾':'缩略图位 · AI 图'), el('b',{},e.title), el('div',{class:'small mute'},fmtDate(e.idx)), el('div',{class:'small'},e.line));
+  if(e.st==='open'){ p.append(el('div',{style:'margin-top:8px'}, el('button',{class:'primary',onclick:()=>{ p.remove(); enterChapter(CH.find(c=>c.id===e.id)); }},(S.cur&&S.cur.id===e.id)?'继续这一章 →':'进入章节 →'))); }
+  else if(e.st==='done'){ p.append(el('div',{class:'small',style:'margin-top:6px;color:var(--gold)'},'已走过。沙盘上回不去，档案的「回溯」里可以翻。')); }
+  else { p.append(el('div',{class:'small mute',style:'margin-top:6px'}, CH.find(c=>c.id===e.id)?'要先走完前一件。':'灰盒未开放。')); }
+  let left=x*sx+14, top=y*sy-20; if(left+250>r.width) left=x*sx-254; if(top+190>r.height) top=r.height-190; if(top<4) top=4; if(left<4) left=4;
+  p.style.left=left+'px'; p.style.top=top+'px'; box.append(p);
+}
+$('#tl').addEventListener('input',ev=>{ const v=+ev.target.value; if(v<S.dateIdx){ ev.target.value=S.dateIdx; toast('时间只能往前。走过的半月回不去。'); return; } S.dateIdx=v; renderStatus(); hubNow(); save(); });
+function hubNow(){ const open=CH.find(c=>chState(c)==='open'); const n=$('#hub-now'); if(open){ n.innerHTML=`红点：<b>${open.title}</b> · ${fmtDate(open.idx)}。${(S.cur&&S.cur.id===open.id)?'走到一半，点红点继续。':'空白半月自动跳过，直接点它。'}`; } else { n.innerHTML='上海卷走完了。延安和重庆在灰盒里还没开。'; }
+  const cl=$('#chlist'); cl.innerHTML=''; CH.forEach(c=>{ const st=chState(c); cl.append(el('div',{},el('span',{class:'d'},fmtShort(c.idx)),el('span',{class:st==='done'?'done':st==='open'?'now':'lock'},(st==='done'?'✓ ':st==='open'?'● ':'○ ')+c.title))); }); }
+
+// ---------- 玩法库 ----------
+const MECHS = [
+  {id:'timing', orig:false, short:'时机', name:'时机 · 什么时候开口', ex:'指针在走，早了他闭嘴，晚了他走人', ref:'延伸：时机型 / 沉默型', ch:'一'},
+  {id:'link', orig:true, short:'连线', name:'连线 · 整理今日见闻', ex:'把时间、地点、人物、物证连起来，连成什么样手记就写什么样', ref:'参考：虎门销烟「把现场中的事实连起来」', ch:'一'},
+  {id:'censor', orig:false, short:'删改', name:'删改 · 过审', ex:'六句悼文，划掉几句才能刊出。划多了没锋芒，划少了退稿', ref:'延伸：删改型', ch:'二'},
+  {id:'sign', orig:false, short:'署名', name:'署名 · 用哪个名字', ex:'真名、笔名、不署名。名和命，各换一样', ref:'延伸：署名型 / 身份型', ch:'二'},
+  {id:'reveal', orig:false, short:'显影', name:'显影 · 米汤与碘酒', ex:'一封空白的信，用碘酒擦出字来', ref:'延伸：解码 / 留存', ch:'三'},
+  {id:'region', orig:true, short:'住哪', name:'点击区域 · 今晚住哪', ex:'租界、华界、闸北，点一块。区域即风险', ref:'参考：点击地图高亮区域（瑷珲）', ch:'三'},
+  {id:'trace', orig:true, short:'描线', name:'描线 · 撤离路线', ex:'一·二八夜，从闸北画一条路出去。画的线就是你走的路', ref:'参考：割香港岛「沿虚线画出一条红线」', ch:'三'},
+  {id:'deliver', orig:true, short:'交付', name:'拖拽交付 · 东西给谁', ex:'稿子、传单、钱，交到三个人手上。交给谁，谁的命就变', ref:'参考：把银元交到英方桌前', ch:'四'},
+  {id:'allocate', orig:false, short:'分配', name:'分配 · 二十块钱', ex:'房租、纸张、路费，总共要二十四，手里只有二十', ref:'延伸：分配型', ch:'四'},
+  {id:'flow', orig:true, short:'油印', name:'流程图 · 油印一本刊物', ex:'写稿、刻蜡纸、油印、装订、分发，排对顺序', ref:'参考：江南制造局流程图填空', ch:'五'},
+  {id:'compare', orig:true, short:'出口', name:'对比选择 · 送葬还是启程', ex:'两份纸并排放，选一份。两种都不是失败，但后面的章节会变', ref:'参考：两份条约对比 + 三选一', ch:'六'},
+  {id:'qte', orig:true, short:'抢底片', name:'QTE · 轰炸中抢底片', ex:'十秒，亮哪盒抢哪盒。没抢到的在火里', ref:'参考：炮手「攻击」按钮', ch:'七'},
+  {id:'campaign', orig:true, short:'战况图', name:'战况图 · 淞沪会战', ex:'碎片层：兵棋式推进，示意非精确', ref:'参考：甲午海战战况图', ch:'七'},
+  {id:'echo', orig:false, short:'回响', name:'回响 · 锡纸歌词', ex:'上海拿到的东西，后面的城再响一次；人物永别态', ref:'延伸：回响 / 永别', ch:'八'},
+];
+function renderLib(){ for(const which of ['orig','ext']){ const host=$('#lib-'+which); host.innerHTML=''; MECHS.filter(m=>m.orig===(which==='orig')).forEach(m=>{ host.append(el('button',{class:'mech'+(S.played[m.id]?' done':''),onclick:()=>openMech(m.id,{})}, el('b',{},m.name), el('span',{class:'ex'},m.ex), el('span',{class:'ref'},m.ref), el('span',{},el('span',{class:'tag'},'第'+m.ch+'章'), S.played[m.id]?el('span',{class:'tag gain'},'试过'):null))); }); } }
+let MODE={chapter:false, done:null, id:null};
+function openMech(id, opt){ MODE={chapter:!!opt.chapter, done:opt.done||null, id}; const m=MECHS.find(x=>x.id===id)||{name:'樟木箱 · 清点',ex:'上海卷的结尾数据卡',ref:''}; const ov=$('#ov'); const p=$('#panel'); p.innerHTML=''; if(!MODE.chapter) p.append(el('button',{class:'close','aria-label':'关闭',onclick:closeMech},'×')); p.append(el('h2',{},m.name), el('div',{class:'lead'},m.ex+(m.ref?'。'+m.ref:''))); ov.classList.add('on'); ov.scrollTop=0; document.body.style.overflow='hidden'; const host=el('div',{}); p.append(host); BUILD[id](host, (r)=>{ if(MODE.chapter){ closeMech(); MODE.done&&MODE.done(r); } else { S.played[id]=true; save(); closeMech(); renderLib(); } }); }
+function closeMech(){ $('#ov').classList.remove('on'); document.body.style.overflow=''; stopTimers(); }
+$('#ov').addEventListener('click',e=>{ if(e.target.id==='ov'&&!MODE.chapter) closeMech(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!MODE.chapter) closeMech(); });
+let timers=[]; function later(fn,ms){ const t=setTimeout(fn,ms); timers.push(t); return t; } function every(fn,ms){ const t=setInterval(fn,ms); timers.push(t); return t; } function stopTimers(){ timers.forEach(clearTimeout); timers.forEach(clearInterval); timers=[]; }
+function resultBlock(r,done){ const d=el('div',{class:'result'}); if(r.sum) d.append(el('div',{class:'paper'},r.sum)); d.append(el('div',{class:'gl'},el('b',{class:'g'},'得'),el('span',{},r.g))); d.append(el('div',{class:'gl'},el('b',{class:'l'},'失'),el('span',{},r.l))); if(r.item) d.append(el('div',{class:'gl'},el('b',{class:'g'},'信物'),el('span',{},r.item))); if(r.echo) d.append(el('div',{class:'gl'},el('b',{class:'r'},'回响'),el('span',{},r.echo))); d.append(el('div',{},el('button',{class:'primary',onclick:()=>done(r)},MODE.chapter?'继续':'收进樟木箱，回去'))); return d; }
+function finish(host,r,done){ gain(r.item, r.echo); if(MODE.chapter&&CUR){ S.results[CUR.ch.id+':'+MODE.id]=r; } note((r.title||'')+' 得「'+r.g+'」失「'+r.l+'」'); save(); host.append(resultBlock(r,done)); host.querySelector('.result').scrollIntoView({behavior:'smooth',block:'nearest'}); }
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function dragOrTap(itemEl, targets, onPair){ let sel=null; itemEl.addEventListener('click',()=>{ if(itemEl.classList.contains('gone')||itemEl.classList.contains('used')) return; $$('.sel',itemEl.parentElement).forEach(x=>x.classList.remove('sel')); itemEl.classList.add('sel'); sel=itemEl; targets.forEach(t=>{ t.onclick=()=>{ if(sel){ onPair(sel,t); sel=null; } }; }); });
+  let drag=null; itemEl.addEventListener('pointerdown',e=>{ if(itemEl.classList.contains('gone')) return; drag={x:e.clientX,y:e.clientY,moved:false}; itemEl.setPointerCapture(e.pointerId); });
+  itemEl.addEventListener('pointermove',e=>{ if(!drag) return; const dx=e.clientX-drag.x, dy=e.clientY-drag.y; if(Math.abs(dx)+Math.abs(dy)>6) drag.moved=true; if(drag.moved){ itemEl.style.transform=`translate(${dx}px,${dy}px)`; itemEl.style.zIndex=5; itemEl.style.position='relative'; targets.forEach(t=>{ const r=t.getBoundingClientRect(); t.classList.toggle('over', e.clientX>r.left&&e.clientX<r.right&&e.clientY>r.top&&e.clientY<r.bottom); }); } });
+  itemEl.addEventListener('pointerup',e=>{ if(!drag) return; const was=drag.moved; drag=null; itemEl.style.transform=''; itemEl.style.zIndex=''; const t=targets.find(t=>t.classList.contains('over')); targets.forEach(t=>t.classList.remove('over')); if(was&&t){ onPair(itemEl,t); } }); }
+
+const BUILD = {
+  timing(host, done){
+    host.append(el('p',{class:'mute small',html:'小何在说一件事，说到一半。什么时候问「名单上还有谁」？指针进绿区时按 <kbd>空格</kbd> 或点「开口」。早了他闭嘴，晚了他走人。'}));
+    const track=el('div',{class:'track'}); const win=el('div',{class:'win'}); const w=18+Math.random()*10, s=40+Math.random()*30; win.style.left=s+'%'; win.style.width=w+'%'; const needle=el('div',{class:'needle'}); track.append(win,needle); host.append(track);
+    const btn=el('button',{class:'primary'},'开口'); host.append(btn); let fin=false;
+    function press(){ if(fin) return; fin=true; track.classList.add('stop'); const tr=track.getBoundingClientRect(), nr=needle.getBoundingClientRect(); const p=(nr.left-tr.left)/tr.width*100; document.removeEventListener('keydown',key); let r; if(p<s) r={title:'开口早了：', g:'什么也没问到', l:'小何觉得你急，三天不来', item:null, echo:'名单你要从别处打听'}; else if(p>s+w) r={title:'开口晚了：', g:'他走之前回头看了你一眼', l:'他走了。名单没问到', item:null, echo:'下次见他是在武汉的码头'}; else { r={title:'开口正好：', g:'他把三个名字告诉了你', l:'从此你知道的比该知道的多', item:'三个名字的纸条', echo:'这三个名字里有一个，1936 年你会在灵堂见到'}; S.people.he.trust+=1; } finish(host,r,done); }
+    btn.onclick=press; function key(e){ if(e.code==='Space'){ e.preventDefault(); press(); } } document.addEventListener('keydown',key);
+  },
+  link(host, done){
+    const L=[['时间','1931 年 2 月 7 日夜'],['地点','龙华'],['人物','柔石等五位左联作家'],['物证','一张被雪打湿的传单']];
+    const right=shuffle(L.map(x=>x[1])); const box=el('div',{class:'link'}); const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); const lc=el('div',{class:'col'}), rc=el('div',{class:'col'}); box.append(svg,lc,rc); host.append(el('p',{class:'mute small'},'先点左边一项，再点右边对应的。没有「一键显示答案」：连成什么样，手记就记成什么样。'), box);
+    const pairs={}; let selL=null; const lefts=L.map(x=>{ const b=el('button',{class:'opt'},x[0]); b.onclick=()=>{ if(b.classList.contains('used')) return; $$('.opt.sel',lc).forEach(o=>o.classList.remove('sel')); b.classList.add('sel'); selL=x[0]; }; lc.append(b); return b; });
+    right.forEach(v=>{ const b=el('button',{class:'opt'},v); b.onclick=()=>{ if(!selL||b.classList.contains('used')) return; pairs[selL]=v; b.classList.add('used'); const lb=lefts.find(x=>x.textContent===selL); lb.classList.add('used'); lb.classList.remove('sel'); drawLines(); selL=null; if(Object.keys(pairs).length===4) check(); }; rc.append(b); });
+    function drawLines(){ svg.innerHTML=''; const br=box.getBoundingClientRect(); svg.setAttribute('viewBox',`0 0 ${br.width} ${br.height}`); for(const k in pairs){ const a=lefts.find(x=>x.textContent===k).getBoundingClientRect(); const b=[...rc.children].find(x=>x.textContent===pairs[k]).getBoundingClientRect(); const ln=document.createElementNS('http://www.w3.org/2000/svg','line'); ln.setAttribute('x1',a.right-br.left); ln.setAttribute('y1',a.top-br.top+a.height/2); ln.setAttribute('x2',b.left-br.left); ln.setAttribute('y2',b.top-br.top+b.height/2); ln.setAttribute('stroke','#cfa85a'); ln.setAttribute('stroke-width','2'); svg.append(ln); } }
+    function check(){ const wrong=L.filter(x=>pairs[x[0]]!==x[1]).map(x=>x[0]); const sum=`${pairs['时间']}，${pairs['人物']}在${pairs['地点']}被秘密杀害；你手上只剩${pairs['物证']}。`;
+      S.flags.noteWrong = wrong.length?wrong.join('、'):null;
+      const r={title:'整理见闻：', sum, g:'手记一页', l: wrong.length?`手记里把「${wrong.join('、')}」记错了。两年后翻看时会发现。`:'没有。', item:'手记 · 龙华', echo: wrong.length?'记错的那一处，1933 年有人写文章时会对上。':'1933 年你会在别人的文章里再读到这一夜。'};
+      finish(host,r,done); }
+  },
+  censor(host, done){
+    host.append(el('p',{class:'mute small'},'一篇悼文，六句。检查员要你划掉「犯忌」的。点句子划掉，点「送审」。划多了没锋芒，划少了退稿。没有正确答案。'));
+    const SENT=[{t:'二月七日夜，龙华的雪下到后半夜。',k:0},{t:'五个人没有审判。',k:2},{t:'他们中最年轻的那位，诗还没印出来。',k:1},{t:'枪声之后，上海照常开市。',k:1},{t:'我们记下这一夜，是为了不忘却。',k:1},{t:'凶手有名字，我们都知道。',k:2}];
+    const paper=el('div',{class:'paper'}); SENT.forEach((s)=>{ const sp=el('span',{class:'sent',tabindex:0,role:'button'},s.t); sp.onclick=()=>sp.classList.toggle('cut'); sp.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); sp.classList.toggle('cut'); } }; paper.append(sp,' '); s.el=sp; }); host.append(paper);
+    const btn=el('button',{class:'primary',style:'margin-top:10px',onclick:submit},'送审'); host.append(btn);
+    function submit(){ btn.disabled=true; const cut=SENT.filter(s=>s.el.classList.contains('cut')); const risk=SENT.filter(s=>!s.el.classList.contains('cut')).reduce((a,s)=>a+s.k,0); const edge=SENT.filter(s=>!s.el.classList.contains('cut')&&s.k>0).length; $$('.sent',paper).forEach(x=>x.style.pointerEvents='none');
+      let r; if(risk>=3){ r={title:'送审：', sum:'退稿。检查员在第'+(SENT.findIndex(s=>!s.el.classList.contains('cut')&&s.k===2)+1)+'句上画了圈。', g:'稿子原样回到你手里，手抄本在学生里传', l:'刊物这一期开了天窗', item:'一份手抄的悼文', echo:'1933 年，这篇没登出来的文章会被另一个人写出来'}; S.flags.censor='rejected'; S.people.yun.trust+=1; } else if(edge===0){ r={title:'送审：', sum:'过审。登了。读者看不出你在说谁。', g:'刊物按时出', l:'锋芒全没了；阿芸说「这跟没写一样」', item:'一份开过天窗的刊物', echo:null}; S.flags.censor='blunt'; } else { r={title:'送审：', sum:'过审。留下的那'+edge+'句，懂的人懂。', g:'刊物出了，懂的人懂', l:'划掉的那'+cut.length+'句，你自己记得', item:'一份被划过的清样', echo:'留下的那几句，1945 年有人能背出来'}; S.flags.censor='edge'; } finish(host,r,done); }
+  },
+  sign(host, done){
+    host.append(el('p',{class:'mute small'},'稿子要登了。用哪个名字？名和命各换一样。'));
+    const ch=el('div',{class:'choices'}); host.append(ch);
+    const O=[{t:'真名 · 顾怀书',s:'身份型 · 以后这个名字会出现在一份名单上',r:{g:'名',l:'安全；以后换城要换身份',item:'署真名的剪报',echo:'1941 年重庆，有人凭这个名字找到你'}},{t:'笔名 · 谷雨',s:'署名型 · 名字被人记住，人没被记住',r:{g:'安全，名字被人记住',l:'稿费被冒领了两次',item:'署「谷雨」的剪报',echo:'终章里这个笔名会和真名对上'}},{t:'不署名',s:'沉默型 · 没人知道你写过',r:{g:'安全',l:'没人知道你写过；阿芸以为是老周写的',item:null,echo:'1936 年有人在灵堂里念了这篇，不知道作者是谁'}}];
+    O.forEach(o=>ch.append(el('button',{onclick:()=>{ $$('button',ch).forEach(b=>b.disabled=true); S.flags.sign=o.t; finish(host,Object.assign({title:'署名：'},o.r),done); }},o.t,el('small',{},o.s))));
+  },
+  reveal(host, done){
+    host.append(el('p',{class:'mute small'},'老周递来一张白纸。米汤写的字，碘酒一擦就显。用手指或鼠标在纸上擦。'));
+    const box=el('div',{class:'revealbox'}); const cv=el('canvas',{width:600,height:300}); const top=el('canvas',{width:600,height:300,style:'position:absolute;inset:0;width:100%;height:100%'}); box.append(cv,top); host.append(box);
+    const g=cv.getContext('2d'); g.fillStyle='#efe7d3'; g.fillRect(0,0,600,300); g.fillStyle='#4d3b2a'; g.font='500 30px "Noto Serif SC",serif'; g.textBaseline='middle';
+    const MSG=['今夜勿回印刷所。','铅字箱在板车上。','阿芸弟弟在闸北，伤。','天亮前出去。']; MSG.forEach((m,i)=>g.fillText(m,60,70+i*55));
+    const t=top.getContext('2d'); t.fillStyle='#e2d8bf'; t.fillRect(0,0,600,300); t.fillStyle='#c9b98f'; t.font='16px sans-serif'; t.fillText('（空白信纸 · 用碘酒擦）',200,150);
+    t.globalCompositeOperation='destination-out'; let down=false, cleared=0, fin=false;
+    function pos(e){ const r=top.getBoundingClientRect(); return [(e.clientX-r.left)/r.width*600,(e.clientY-r.top)/r.height*300]; }
+    function wipe(e){ const [x,y]=pos(e); t.beginPath(); t.arc(x,y,26,0,Math.PI*2); t.fill(); cleared++; if(cleared%12===0) check(); }
+    top.addEventListener('pointerdown',e=>{ down=true; top.setPointerCapture(e.pointerId); wipe(e); }); top.addEventListener('pointermove',e=>{ if(down) wipe(e); }); top.addEventListener('pointerup',()=>{ down=false; });
+    function check(){ if(fin) return; const d=t.getImageData(0,0,600,300).data; let n=0; for(let i=3;i<d.length;i+=16){ if(d[i]<40) n++; } if(n/(d.length/16)>0.55){ fin=true; finish(host,{title:'显影：', g:'四行字。老周信你到这一步', l:'碘酒用完了。这张纸两小时后会黄掉', item:'一封显影过的信', echo:'「天亮前出去」这四个字，明早会派上用场'},done); } }
+  },
+  region(host, done){
+    host.append(el('p',{class:'mute small'},'今晚住哪？点一块。区域就是风险。'));
+    const box=el('div',{class:'svgbox'}); box.innerHTML=`<svg viewBox="0 0 600 360">
+      <rect width="600" height="360" fill="#e2d8bf"/>
+      <path class="wat" d="M0,150 C150,130 250,180 400,160 C500,147 560,170 600,160 L600,185 C560,195 500,172 400,185 C250,205 150,155 0,175Z"/>
+      <path class="wat" d="M470,0 C520,120 560,240 540,360 L600,360 L600,0Z"/><text class="lbl" x="548" y="200" transform="rotate(80 548,200)">黄浦江</text>
+      <text class="lbl" x="260" y="178">苏州河</text>
+      <rect class="blk reg" data-r="zhabei" x="30" y="20" width="300" height="115" rx="6"/><text class="lbl big" x="46" y="48">华界 · 闸北</text><text class="lbl" x="46" y="70">印刷所在这里 · 枪声在这里</text>
+      <rect class="blk reg" data-r="hongkou" x="345" y="20" width="130" height="115" rx="6"/><text class="lbl big" x="360" y="48">虹口</text><text class="lbl" x="360" y="70">日侨区</text>
+      <rect class="blk reg" data-r="settle" x="30" y="195" width="445" height="70" rx="6"/><text class="lbl big" x="46" y="222">公共租界</text><text class="lbl" x="46" y="244">巡捕房 · 报馆 · 小何的阁楼</text>
+      <rect class="blk reg" data-r="french" x="30" y="275" width="300" height="70" rx="6"/><text class="lbl big" x="46" y="302">法租界</text><text class="lbl" x="46" y="324">阿芸的学校在这里</text>
+      <rect class="blk reg" data-r="nanshi" x="345" y="275" width="130" height="70" rx="6"/><text class="lbl big" x="360" y="302">华界 · 南市</text>
+    </svg>`; host.append(box); host.append(el('p',{class:'small mute'},'示意图，不是精确地图。'));
+    const R={ zhabei:{n:'华界·闸北',g:'一夜没睡，看见了别人看不见的；一篇稿子', l:'老周说你疯了', item:'闸北的一夜', echo:'这篇稿子 1937 年会被人翻出来'}, hongkou:{n:'虹口',g:'没人想到你会往这儿走', l:'第二天你在日侨的目光里走了三条街', item:'一张日文传单'}, settle:{n:'公共租界',g:'安全。小何的阁楼有热水', l:'跟老周断了三天联系', item:'小何阁楼的钥匙'}, french:{n:'法租界',g:'阿芸给你开了门，学校有法国人的旗', l:'阿芸的同学记住了你的脸', item:'一张法文通行证'}, nanshi:{n:'华界·南市',g:'离战火最远', l:'离所有人也最远；这一夜什么也没发生', item:null} };
+    $$('.reg',box).forEach(r=>r.addEventListener('click',()=>{ $$('.reg',box).forEach(x=>{ x.classList.remove('pick'); x.style.pointerEvents='none'; }); r.classList.add('pick'); const o=R[r.dataset.r]; S.flags.night=r.dataset.r; if(r.dataset.r==='french') S.people.yun.trust+=1; if(r.dataset.r==='settle') S.people.he.trust+=1; finish(host,Object.assign({title:'今晚住在'+o.n+'：'},o),done); }));
+  },
+  trace(host, done){
+    host.append(el('p',{class:'mute small'},'天亮前出闸北。两条虚线，选一条，用手指或鼠标从起点沿着描到头。'));
+    const box=el('div',{class:'svgbox'}); box.innerHTML=`<svg viewBox="0 0 600 340">
+      <rect x="0" y="0" width="600" height="340" fill="#e2d8bf"/>
+      <path class="wat" d="M0,200 C120,180 220,230 330,205 C430,185 520,215 600,195 L600,232 C520,252 430,222 330,242 C220,267 120,217 0,237 Z"/>
+      <rect class="blk" x="40" y="30" width="520" height="140" rx="6"/><text class="lbl big" x="60" y="56">华界 · 闸北</text><text class="lbl" x="60" y="78">宝山路 · 印刷所 · 铅字箱</text>
+      <rect class="blk" x="300" y="258" width="260" height="60" rx="6"/><text class="lbl big" x="316" y="284">公共租界</text>
+      <rect class="blk" x="40" y="258" width="220" height="60" rx="6"/><text class="lbl big" x="56" y="284">沿铁路向西 · 真如</text>
+      <text class="lbl" x="250" y="222">苏州河</text>
+      <path id="rA" class="dash" d="M120,110 C200,120 330,130 380,170 C420,205 430,230 440,270"/>
+      <path id="rB" class="dash" d="M120,110 C100,150 80,190 70,230 C65,250 90,270 120,285"/>
+      <circle cx="120" cy="110" r="9" fill="#c23b2e" opacity=".8"/><text class="lbl" x="134" y="104">起点</text>
+      <text class="lbl" x="395" y="160">A 过桥入租界</text><text class="lbl" x="30" y="200" transform="rotate(-70 30,200)">B 带铅字箱向西</text>
+      <path id="drawn" class="drawn" d=""/></svg>`; host.append(box);
+    const svg=box.firstElementChild; const paths={A:svg.querySelector('#rA'),B:svg.querySelector('#rB')}; const drawn=svg.querySelector('#drawn');
+    const info=el('div',{class:'small mute',style:'margin-top:6px'},'进度 0%'); host.append(info);
+    let route=null, prog=0, pts=[], drawing=false, finished=false;
+    function toSvg(e){ const r=svg.getBoundingClientRect(); return [(e.clientX-r.left)/r.width*600,(e.clientY-r.top)/r.height*340]; }
+    function nearest(path,x,y){ const L=path.getTotalLength(); let best=1e9,bl=0; for(let l=0;l<=L;l+=6){ const p=path.getPointAtLength(l); const d=(p.x-x)**2+(p.y-y)**2; if(d<best){ best=d; bl=l; } } return {d:Math.sqrt(best),l:bl,L}; }
+    svg.addEventListener('pointerdown',e=>{ if(finished) return; const [x,y]=toSvg(e); if(Math.hypot(x-120,y-110)>45){ info.textContent='从红色起点（闸北的印刷所）开始描。'; return; } drawing=true; pts=[[x,y]]; prog=0; route=null; svg.setPointerCapture(e.pointerId); });
+    svg.addEventListener('pointermove',e=>{ if(!drawing) return; const [x,y]=toSvg(e); if(!route){ const a=nearest(paths.A,x,y), b=nearest(paths.B,x,y); if(a.l>40||b.l>40){ route=a.l>b.l?'A':'B'; } } const path=route?paths[route]:null; if(path){ const n=nearest(path,x,y); if(n.d<30){ prog=Math.max(prog,n.l/n.L); } else { info.textContent='偏出路线了，回到虚线上。'; return; } } pts.push([x,y]); drawn.setAttribute('d','M'+pts.map(p=>p.join(',')).join('L')); info.textContent=`路线 ${route||'?'} · 进度 ${Math.round(prog*100)}%`; if(prog>0.92&&!finished){ finished=true; drawing=false; end(); } });
+    svg.addEventListener('pointerup',()=>{ drawing=false; });
+    function end(){ S.flags.route=route; const r= route==='A' ? {title:'一·二八夜：', g:'过了桥，租界里安全一夜，阿芸在桥头等你', l:'铅字箱留在闸北，印刷所三天后烧了', item:'租界巡捕的盘问条', echo:'1937 年 8 月再过这座桥时，你会想起这一夜'} : {title:'一·二八夜：', g:'铅字箱带出来了，刊物不停', l:'在真如耽搁三天，错过了阿芸，她以为你死了', item:'一盒铅字', echo:'这盒铅字 1938 年在武汉还在用'}; if(route==='A') S.people.yun.trust+=1; finish(host,r,done); }
+  },
+  deliver(host, done){
+    host.append(el('p',{class:'mute small'},'三样东西，三个人。拖过去，或者先点东西再点人。每一样只能给一个人。'));
+    const box=el('div',{class:'deliver'}); const items=el('div',{class:'items'}), people=el('div',{class:'people'}); box.append(items,people); host.append(box);
+    const I=[['一叠稿子','稿'],['两百份传单','单'],['二十块钱','钱']]; const Pp=[['老周','印刷所工友，昨晚没睡'],['阿芸','女学生，明天回学校'],['小何','跑街的，什么都能送到']];
+    const OUT={ '稿-老周':'老周把稿子压进铅字箱底。安全，但要等。','稿-阿芸':'阿芸带进了学校，三天后在学生里传抄。','稿-小何':'小何送去了刊物。登了，署名是空的。','单-老周':'传单堆在印刷所，两周后随房子一起烧了。','单-阿芸':'阿芸夜里贴满了一条街。她被记下了名字。','单-小何':'小何在码头发了一半，另一半卖了废纸。','钱-老周':'老周交了印刷所的房租。刊物不停。','钱-阿芸':'阿芸买了纸和药。她弟弟在闸北受了伤。','钱-小何':'小何买了去武汉的船票。他以后在武汉等你。' };
+    const got={}; const pEls=Pp.map(p=>{ const d=el('div',{class:'person'},el('b',{},p[0]),el('div',{class:'small mute'},p[1]),el('div',{class:'got'})); people.append(d); d.dataset.name=p[0]; return d; });
+    I.forEach(it=>{ const d=el('div',{class:'item'},it[0]); items.append(d); dragOrTap(d,pEls,(itemEl,t)=>{ if(itemEl.classList.contains('gone')) return; const k=it[1]+'-'+t.dataset.name; got[it[1]]=t.dataset.name; itemEl.classList.add('gone'); itemEl.classList.remove('sel'); $('.got',t).textContent=OUT[k]; if(Object.keys(got).length===3) end(); }); });
+    function end(){ const g=[], l=[]; if(got['稿']==='小何') g.push('稿子登出来了'); else if(got['稿']==='阿芸') g.push('稿子在学生里传开'); else g.push('稿子还在');
+      if(got['单']==='阿芸'){ l.push('阿芸被记下了名字'); S.people.yun.trust+=1; } if(got['钱']==='小何'){ g.push('武汉有人接应'); S.flags.heInWuhan=true; S.people.he.trust+=1; } if(got['钱']==='老周'){ S.people.zhou.trust+=1; } else l.push('印刷所的房租没着落'); if(got['单']==='老周') l.push('两百份传单跟房子一起烧了');
+      finish(host,{title:'东方图书馆之火：', g:g.join('；')||'没有', l:l.join('；')||'没有', item:'东方图书馆的一页残书', echo: S.flags.heInWuhan?'1938 年到武汉，小何在码头。':'1938 年到武汉，码头上没人。'},done); }
+  },
+  allocate(host, done){
+    host.append(el('p',{class:'mute small'},'月底。手里二十块。房租要八，纸要六，去武汉的路费要十。总共二十四。怎么分都缺四块。'));
+    const A={rent:8,paper:6,fare:6}; const box=el('div',{class:'alloc'}); const rows={};
+    const mk=(k,label,need)=>{ const v=el('span',{class:'v'},A[k]); const inp=el('input',{type:'range',min:0,max:20,value:A[k],id:'al-'+k}); inp.oninput=()=>{ A[k]=+inp.value; balance(k); render(); }; rows[k]={inp,v,need}; box.append(el('label',{},label+'（要 '+need+'）',inp,v)); };
+    mk('rent','房租',8); mk('paper','纸张',6); mk('fare','路费',10); host.append(box); const sum=el('div',{class:'small mute',style:'margin-top:6px'}); host.append(sum);
+    function balance(k){ let total=A.rent+A.paper+A.fare; const others=Object.keys(A).filter(x=>x!==k); while(total>20){ for(const o of others){ if(A[o]>0&&total>20){ A[o]--; total--; } } } }
+    function render(){ for(const k in rows){ rows[k].inp.value=A[k]; rows[k].v.textContent=A[k]; } sum.textContent='已分 '+(A.rent+A.paper+A.fare)+' / 20。'; }
+    render(); const btn=el('button',{class:'primary',style:'margin-top:10px',onclick:()=>{ btn.disabled=true; const g=[],l=[]; if(A.rent>=8){ g.push('印刷所保住了'); } else l.push('老周被房东赶了一回'); if(A.paper>=6) g.push('这期刊物出了'); else l.push('这期开了天窗'); if(A.fare>=10){ g.push('路费够，武汉随时能走'); S.flags.fare=true; } else l.push('走不了，等下个月'); finish(host,{title:'月底：', g:g.join('；')||'没有', l:l.join('；')||'没有', item:'一本记到二十块的账本', echo:'少的那四块，1938 年在武汉会以另一种方式补上'},done); }},'就这么分'); host.append(btn);
+  },
+  flow(host, done){
+    host.append(el('p',{class:'mute small'},'油印一份传阅本，五步。先点下面一枚，再点上面一格；也可以直接拖。排完自动检查。'));
+    const ORDER=['写稿','刻蜡纸','油印','装订','分发']; const slots=el('div',{class:'flow'}); const chips=el('div',{class:'chips'}); host.append(slots,chips);
+    const sEls=ORDER.map((_,i)=>{ const s=el('div',{class:'slot'},'第 '+(i+1)+' 步'); slots.append(s); return s; }); const placed={};
+    shuffle(ORDER).forEach(c=>{ const ch=el('div',{class:'chip'},c); chips.append(ch); dragOrTap(ch,sEls,(chipEl,slot)=>{ if(slot.classList.contains('filled')) return; const i=sEls.indexOf(slot); placed[i]=c; slot.textContent=c; slot.classList.add('filled'); chipEl.classList.add('used'); chipEl.classList.remove('sel'); if(Object.keys(placed).length===5) check(); }); });
+    function check(){ const bad=ORDER.map((o,i)=>placed[i]!==o?i:-1).filter(i=>i>=0); bad.forEach(i=>sEls[i].classList.add('bad'));
+      let sum; if(!bad.length) sum='蜡纸刻了一夜，油印机摇到天亮，三十份。'; else if(ORDER.indexOf(placed[4])<ORDER.indexOf(placed[2])) sum='你把分发排在了油印前面：一叠白纸送到了码头，小何在风里骂了一刻钟。'; else sum='顺序乱了。老周重来一遍，少了一夜。';
+      finish(host,{title:'油印：', sum, g: bad.length?'老周替你补了课':'三十份传阅本，第一份在你手里', l: bad.length?'一夜，和小何的耐心':'一夜没睡', item: bad.length?null:'传阅本第一份', echo: bad.length?null:'这份传阅本 1936 年会出现在一个人的灵堂里'},done); }
+  },
+  compare(host, done){
+    host.append(el('p',{class:'mute small'},'两张纸并排放。选一张。两种都不是失败，但后面的章节会变。'));
+    const box=el('div',{class:'cmp'}); const A=el('div',{class:'paper',tabindex:0},el('div',{class:'muteink small'},'治丧委员会 · 通知'),el('div',{},'先生于十九日晨逝世。二十二日下午二时自万国殡仪馆启灵，往万国公墓。'),el('div',{class:'muteink small',style:'margin-top:8px'},'扶柩名单上没有你的名字。送葬的队伍不需要名字。'));
+    const B=el('div',{class:'paper',tabindex:0},el('div',{class:'muteink small'},'车票 · 沪宁线 · 今日'),el('div',{},'北上。到了西安再往北。'),el('div',{class:'muteink small',style:'margin-top:8px'},'今天不走，下一趟是半个月后。半个月后上海的样子，没人说得准。'));
+    box.append(A,B); host.append(box);
+    A.onclick=()=>pick('A'); B.onclick=()=>pick('B');
+    function pick(w){ (w==='A'?A:B).classList.add('pick'); A.onclick=B.onclick=null; S.flags.exit=w;
+      finish(host, w==='A'?{title:'出口·送葬：', g:'你走在队伍里，唱了歌', l:'车票作废。下一趟是 1937 年', item:'送葬那天的挽联一角', echo:'结局维度「来路」记为：送完最后一程才走。第七章你在上海。'}:{title:'出口·启程：', g:'十月底你在西安', l:'没有送最后一程。这件事会跟你一辈子', item:'剪了一半的车票', echo:'结局维度「来路」记为：早到。第七章你不在上海。'},done); }
+  },
+  qte(host, done){
+    host.append(el('p',{class:'mute small'},'轰炸。暗房里八盒底片，火从哪边来不知道。亮起来的那一盒，点它就救下来；没点到的，烧了。十秒。'));
+    const bar=el('div',{class:'bar'},el('i',{})); const grid=el('div',{class:'qgrid'}); host.append(bar,grid);
+    const boxes=[]; for(let i=0;i<8;i++){ const b=el('div',{class:'qbox',role:'button',tabindex:0},'底片 '+(i+1)); grid.append(b); boxes.push(b); }
+    let saved=0, lost=0, t0=Date.now(), running=false; const start=el('button',{class:'primary'},'开始'); host.append(start);
+    start.onclick=()=>{ start.disabled=true; running=true; t0=Date.now(); every(()=>{ const p=1-(Date.now()-t0)/10000; $('i',bar).style.width=Math.max(0,p*100)+'%'; if(p<=0) end(); },100); light(); };
+    function light(){ if(!running) return; const free=boxes.filter(b=>!b.classList.contains('saved')&&!b.classList.contains('lost')); if(!free.length){ end(); return; } const b=free[Math.floor(Math.random()*free.length)]; b.classList.add('lit'); const h=()=>{ if(!b.classList.contains('lit')) return; b.classList.remove('lit'); b.classList.add('saved'); b.textContent='救下'; saved++; }; b.onclick=h; b.onkeydown=e=>{ if(e.key==='Enter'||e.key===' ') h(); }; later(()=>{ if(b.classList.contains('lit')){ b.classList.remove('lit'); b.classList.add('lost'); b.textContent='烧了'; lost++; } later(light, 250); }, 750); }
+    function end(){ if(!running) return; running=false; stopTimers(); boxes.forEach(b=>{ if(!b.classList.contains('saved')&&!b.classList.contains('lost')){ b.classList.add('lost'); b.textContent='烧了'; lost++; } }); S.flags.filmSaved=saved; finish(host,{title:'暗房：', g:`救出 ${saved} 盒底片`, l:`${lost} 盒在火里。没有「全部救出」这个结局`, item: saved?`${saved} 盒底片`:null, echo: saved>=5?'这些底片 1945 年会成为一本画册':'画册出不成了，但剩下的几张会登在一份小报上'},done); }
+  },
+  campaign(host, done){
+    host.append(el('p',{class:'mute small'},'碎片层。按「继续」推进。箭头与位置是示意，不是精确行军路线。真做时这里是二三十秒的 AI 混剪 + 这张图。'));
+    const box=el('div',{class:'svgbox'}); box.innerHTML=`<svg viewBox="0 0 600 360">
+      <rect width="600" height="360" fill="#e2d8bf"/>
+      <path class="wat" d="M380,0 C420,100 470,200 600,260 L600,0Z"/><text class="lbl" x="500" y="80">长江口</text>
+      <path class="wat" d="M0,330 L600,330 L600,360 L0,360Z"/><text class="lbl" x="20" y="350">杭州湾 · 金山卫</text>
+      <path d="M0,190 C120,180 240,200 360,185" fill="none" stroke="#b9c9cf" stroke-width="8"/><text class="lbl" x="120" y="180">苏州河</text>
+      <text class="lbl big" x="150" y="130">闸北</text><text class="lbl big" x="300" y="60">宝山 · 吴淞</text><text class="lbl big" x="360" y="120">川沙</text><text class="lbl" x="250" y="205">四行仓库</text><text class="lbl big" x="200" y="250">租界</text>
+      <g id="jp" class="mk" transform="translate(520,40)"><circle r="9" fill="#4a5a8c"/><text class="lbl" x="12" y="4">日军</text></g>
+      <g id="cn" class="mk" transform="translate(180,150)"><circle r="9" fill="#c98a3a"/><text class="lbl" x="12" y="4">守军</text></g>
+      <g id="me" class="mk" transform="translate(150,165)"><circle r="6" fill="#c23b2e"/><text class="lbl" x="10" y="4">${S.flags.exit==='B'?'老周':'你'}</text></g>
+      <path id="arr" class="arrow jp" d=""/>
+    </svg>`; host.append(box);
+    const STEPS=[{d:'1937-08-13',t:'战起',s:'闸北开火。印刷所的铅字箱又要搬一次。',jp:[480,70],cn:[180,150],me:[150,165],arr:''},{d:'1937-08-23',t:'川沙、吴淞登陆',s:'日军从长江口登陆。守军北移。',jp:[380,90],cn:[260,100],me:[150,165],arr:'M520,40 L390,95'},{d:'1937-10-26',t:'四行仓库',s:'守军退到苏州河北岸的仓库。租界这边隔河看了四天。',jp:[300,130],cn:[255,185],me:[230,215],arr:'M390,95 L300,130'},{d:'1937-11-05',t:'金山卫登陆',s:'南面来了。上海成了口袋。',jp:[120,300],cn:[200,230],me:[230,215],arr:'M300,130 C200,330 150,320 120,300'},{d:'1937-11-12',t:'华界沦陷',s:'租界成了孤岛。带着一盒铅字的人在岛上。',jp:[150,130],cn:[0,0],me:[230,215],arr:'M120,300 L150,130'}];
+    const steps=el('div',{class:'steps'}); STEPS.forEach(s=>steps.append(el('span',{},s.d))); host.append(steps);
+    const card=el('div',{class:'card'}); host.append(card); let i=-1; const btn=el('button',{class:'primary',onclick:next},'继续'); host.append(btn);
+    function next(){ i++; if(i>=STEPS.length){ btn.disabled=true; S.people.linxue.hidden=false; finish(host,{title:'淞沪三月：', g: S.flags.exit==='B'?'你在西安，刊物在西安出了三期':'孤岛上的三个月，刊物没停', l:'闸北什么都没了', item:'孤岛时期的一期刊物', echo:'碎片层解锁：林雪（东北）第一次出现'},done); return; } const s=STEPS[i]; $$('span',steps).forEach((x,k)=>x.classList.toggle('on',k===i)); card.innerHTML=`<div class="eyebrow">${s.d}</div><h3 style="margin:2px 0 4px">${s.t}</h3><div class="small">${s.s}</div>`; const svg=box.firstElementChild; svg.querySelector('#jp').setAttribute('transform',`translate(${s.jp})`); svg.querySelector('#cn').setAttribute('transform',`translate(${s.cn})`); svg.querySelector('#cn').style.opacity=s.cn[0]?1:0; svg.querySelector('#me').setAttribute('transform',`translate(${s.me})`); svg.querySelector('#arr').setAttribute('d',s.arr); }
+    next();
+  },
+  echo(host, done){
+    host.append(el('p',{class:'mute small'},'结构层的两样东西，参考作品完全没有。'));
+    host.append(el('h3',{},'回响'));
+    const got=S.items.filter(i=>i.echo); if(got.length){ host.append(el('p',{class:'small'},'你已经攒下 '+got.length+' 件会回响的信物。跳到 1941 年的重庆（示意），看它们怎么响：')); const b=el('button',{class:'primary',onclick:()=>{ b.disabled=true; const list=el('div',{class:'paper'}); got.forEach(i=>list.append(el('div',{},'· '+i.name+'（'+i.when+'）→ '+i.echo))); host.append(list); finish(host,{title:'回响：', g:'过去的东西在新的城里有了意义', l:'有些回响是债', item:null},done); }},'跳到 1941 · 重庆'); host.append(b); } else { host.append(el('p',{class:'small mute'},'樟木箱还是空的。先走章节拿几样信物，再回来看回响。')); host.append(el('button',{onclick:()=>done({})},'回去')); }
+    host.append(el('h3',{},'永别态')); host.append(el('p',{class:'small'},'龙华之后，柔石的人物卡变灰，带「永别」标记，不能再对话、不能回溯。去「档案 → 人物」看。'));
+  },
+  summary(host, done){
+    const gains=[], losses=[]; Object.values(S.results).forEach(r=>{ if(r.g&&r.g!=='没有') gains.push(r.g); if(r.l&&r.l!=='没有'&&r.l!=='没有。') losses.push(r.l); });
+    host.append(el('div',{class:'datacard'}, el('div',{class:'k'},el('div',{class:'n'},String(S.items.length)),el('div',{class:'t'},'信物')), el('div',{class:'k'},el('div',{class:'n'},String(S.notes.length)),el('div',{class:'t'},'手记')), el('div',{class:'k'},el('div',{class:'n'},S.flags.exit==='B'?'早到':'送完最后一程'),el('div',{class:'t'},'来路（结局维度一）')), el('div',{class:'k'},el('div',{class:'n'},'1'),el('div',{class:'t'},'永别 · 柔石'))));
+    host.append(el('h3',{},'人物')); const pl=el('div',{class:'small'}); ['zhou','yun','he'].forEach(k=>{ const p=S.people[k]; pl.append(el('div',{},p.name+' · 信任 '+'●'.repeat(Math.min(p.trust,5))+'○'.repeat(Math.max(0,3-p.trust)))); }); host.append(pl);
+    host.append(el('h3',{},'得')); host.append(el('ul',{class:'small'},...gains.map(g=>el('li',{},g))));
+    host.append(el('h3',{},'失')); host.append(el('ul',{class:'small'},...losses.map(l=>el('li',{},l))));
+    host.append(el('h3',{},'会回响的信物')); const ec=S.items.filter(i=>i.echo); host.append(ec.length?el('ul',{class:'small'},...ec.map(i=>el('li',{},i.name+' → '+i.echo))):el('p',{class:'small mute'},'没有。'));
+    host.append(el('div',{class:'note'},'上海卷完。下一步是武汉三件事，然后延安 / 重庆二选一，不横跳。灰盒里还没开。'));
+    host.append(el('button',{class:'primary',onclick:()=>done({})},'合上箱子'));
+  },
+};
+
+// ---------- 档案 ----------
+$$('.tabs button').forEach(b=>b.addEventListener('click',()=>{ $$('.tabs button').forEach(x=>x.classList.toggle('on',x===b)); ['items','notes','people','flow'].forEach(t=>{ $('#arch-'+t).hidden=(t!==b.dataset.tab); }); }));
+function renderArchive(){
+  const it=$('#arch-items'); it.innerHTML=''; if(!S.items.length) it.append(el('div',{class:'mute small'},'空的。去章节拿。')); S.items.forEach(i=>it.append(el('div',{class:'card'},el('b',{},i.name),el('div',{class:'small mute'},i.when),i.echo?el('div',{class:'small',style:'color:var(--bamboo)'},'回响 · '+i.echo):null)));
+  const no=$('#arch-notes'); no.innerHTML=''; if(!S.notes.length) no.append(el('div',{class:'mute small'},'还没写。')); const paper=el('div',{class:'paper'}); S.notes.forEach(n=>paper.append(el('div',{},el('span',{class:'muteink small'},n.when+' · '),n.text))); if(S.notes.length) no.append(paper);
+  const pe=$('#arch-people'); pe.innerHTML=''; for(const k in S.people){ const p=S.people[k]; pe.append(el('div',{class:'card'+(p.alive?'':' gone')},el('b',{},p.hidden?'？？？':p.name),el('div',{class:'small mute'},p.hidden?'碎片层解锁':p.role),p.alive?el('div',{class:'small'},'信任 '+'●'.repeat(Math.min(p.trust,5))+'○'.repeat(Math.max(0,3-p.trust))):el('div',{class:'small',style:'color:var(--cinnabar)'},p.gone))); }
+  const fl=$('#arch-flow'); fl.innerHTML=''; const fm=el('div',{class:'flowmap'}); const chain=CH.map(c=>c.id).concat(['yanan','chongqing','north']); chain.forEach((id,i)=>{ const c=CH.find(x=>x.id===id); const l=LOCKED.find(x=>x.id===id); const lit=S.done[id]; const now=c&&!lit&&chState(c)==='open'; fm.append(el('span',{class:'node'+(lit?' lit':'')+(now?' now':'')}, (lit||now)?(c||l).title:'？？？')); if(i<chain.length-1) fm.append(el('span',{class:'ar'},'→')); }); fl.append(el('p',{class:'small mute'},'走过的亮着，没走的是「？？？」。真做时点亮着的抉择卡可以回到那一刻并恢复数值（掖庭雪已做过），沙盘上不能回。'),fm);
+  const rs=Object.keys(S.results); if(rs.length){ fl.append(el('h3',{},'走过的抉择')); const ul=el('ul',{class:'small'}); rs.forEach(k=>{ const r=S.results[k]; ul.append(el('li',{},(r.title||k)+' 得「'+r.g+'」失「'+r.l+'」')); }); fl.append(ul); }
+}
+
+// ---------- 启动 ----------
+renderMap(); renderStatus(); hubNow(); renderLib();
+window.addEventListener('resize',()=>{ $$('.popup').forEach(p=>p.remove()); });
+</script>

@@ -256,7 +256,8 @@ kbd{font-family:var(--mono);font-size:.78em;background:var(--panel2);border:1px 
 .stage{position:relative;min-height:100vh;overflow:hidden;background:#1b2017;color:var(--paper);--gold:#d9c38a;--gold-soft:#5a4d2a}
 .stage-bg{position:absolute;inset:0;background:#1b2017 url(art/bg.webp) center/cover no-repeat}
 .stage-bg::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 52%,rgba(14,18,12,.38) 0%,rgba(14,18,12,.12) 40%,rgba(10,12,8,.55) 100%)}
-.stage>*{position:relative}
+.stage>*:not(.stage-bg){position:relative}
+.stage .stage-bg{position:absolute}
 .stage-top{display:flex;justify-content:space-between;align-items:flex-start;padding:28px 44px 0;z-index:5}
 .logo{display:flex;gap:14px;align-items:center}
 .logo .seal{width:46px;height:52px;border:1.5px solid var(--gold);color:var(--gold);font-family:var(--display);font-size:1.1rem;line-height:1.1;display:grid;place-items:center;text-align:center;padding:4px;letter-spacing:.05em;flex:none}
@@ -681,7 +682,7 @@ $('#b-reset').addEventListener('click',()=>{ if(!M3.ok) return; M3.view='iso'; M
 $('#b-full').addEventListener('click',()=>{ const s=$('#scr-hub'); if(document.fullscreenElement){ document.exitFullscreen&&document.exitFullscreen(); } else if(s.requestFullscreen){ s.requestFullscreen().catch(()=>{}); } });
 $('#z-in').addEventListener('click',()=>zoomBy(0.85)); $('#z-out').addEventListener('click',()=>zoomBy(1.18));
 function zoomBy(f){ if(!M3.ok) return; M3.zoom=Math.min(1.9,Math.max(0.55,M3.zoom*f)); setCam(); }
-function setCam(){ if(!M3.ok) return; if(M3.view==='top'){ M3.camera.position.set(0,15.5*M3.zoom,0.01); } else { M3.camera.position.set(0,8.4*M3.zoom,10.6*M3.zoom); } M3.camera.lookAt(0,-0.2,0); }
+function setCam(){ if(!M3.ok) return; if(M3.view==='top'){ M3.camera.position.set(0,15.5*M3.zoom,0.01); } else { M3.camera.position.set(0,9.2*M3.zoom,11.6*M3.zoom); } M3.camera.lookAt(0,-0.2,0); }
 $('#f-about').addEventListener('click',()=>go('about')); $('#f-lib').addEventListener('click',()=>go('lib')); $('#f-arch').addEventListener('click',()=>go('archive')); $('#f-go').addEventListener('click',()=>resumeChapter());
 
 // ---------- 3D 浮岛（Three.js + 离线高程 + 国界遮罩；失败则回落到 SVG） ----------

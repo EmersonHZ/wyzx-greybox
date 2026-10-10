@@ -1,2 +1,7 @@
 .check.js
 .DS_Store
+art/output/
+art/*.log
+art/*.py
+art/*.sh
+art/*.txt

@@ -255,7 +255,7 @@ kbd{font-family:var(--mono);font-size:.78em;background:var(--panel2);border:1px 
 .on-hub .top{display:none}
 .stage{position:relative;min-height:100vh;overflow:hidden;background:#1b2017;color:var(--paper);--gold:#d9c38a;--gold-soft:#5a4d2a}
 .stage-bg{position:absolute;inset:0;background:#1b2017 url(art/bg.webp) center/cover no-repeat}
-.stage-bg::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 55%,rgba(14,18,12,.5) 0%,rgba(14,18,12,.22) 38%,rgba(10,12,8,.75) 100%)}
+.stage-bg::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 52%,rgba(14,18,12,.38) 0%,rgba(14,18,12,.12) 40%,rgba(10,12,8,.55) 100%)}
 .stage>*{position:relative}
 .stage-top{display:flex;justify-content:space-between;align-items:flex-start;padding:28px 44px 0;z-index:5}
 .logo{display:flex;gap:14px;align-items:center}
@@ -270,7 +270,7 @@ kbd{font-family:var(--mono);font-size:.78em;background:var(--panel2);border:1px 
 .stage-left .years{font-family:var(--mono);letter-spacing:.3em;color:#cfc5a6;font-size:.85rem}
 .slogan{font-family:var(--display);font-weight:500;font-size:clamp(2rem,4.4vw,4rem);line-height:1.35;letter-spacing:.06em;margin:14px 0 22px;color:#f1e9d2;text-shadow:0 2px 12px rgba(0,0,0,.6)}
 .stage-left .sub{font-family:var(--display);font-size:1.05rem;line-height:1.9;color:#ddd4b8;max-width:none}
-.stage .map3d{position:absolute;left:12%;top:8%;width:76%;height:78%;aspect-ratio:auto;background:transparent;touch-action:pan-y;overflow:visible;z-index:2}
+.stage .map3d{position:absolute;left:17%;top:7%;width:68%;height:78%;aspect-ratio:auto;background:transparent;touch-action:pan-y;overflow:visible;z-index:2}
 .stage .map3d::after{display:none}
 .stage .map3d canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
 .stage #map{position:absolute;left:14%;top:12%;width:72%;background:transparent;border:none;z-index:1}
@@ -671,7 +671,7 @@ function renderMap(){ // SVG 回落图（WebGL 不可用时才显示）
   for(const r of MAPDATA.china){ svg.append(mk('path',{class:'land',d:'M'+r.map(p=>p.join(',')).join('L')+'Z'})); } for(const r of MAPDATA.rivers){ svg.append(mk('path',{class:'river',d:'M'+r.p.map(p=>p.join(',')).join('L')})); }
   pinsByCity().forEach(p=>{ const c=CITIES[p.city]; if(!c) return; const [x,y]=P(c[0],c[1]); const st=p.st==='now'?'open':p.st; const g=mk('g',{class:'ev '+st+(p.st==='now'?' pulse':''),tabindex:0,role:'button'}); g.append(mk('circle',{class:'ring',cx:x,cy:y,r:8})); g.append(mk('circle',{class:'dot',cx:x,cy:y,r:6})); const t=mk('text',{x:x+10,y:y-8}); t.textContent=p.city; g.append(t); g.addEventListener('click',()=>showCard(p.node)); svg.append(g); });
 }
-function renderHub(){ renderMap(); renderTimeline(); renderInset(); build3DMarkers(); }
+function renderHub(){ renderMap(); renderTimeline(); renderInset(); build3DMarkers(); const n=nodeById(SEL); if(n) showCard(n); }
 function hubNow(){ renderTimeline(); }
 // 舞台按钮
 $('#b-tour').addEventListener('click',()=>{ M3.userPaused=!M3.userPaused; M3.paused=M3.userPaused; $('#b-tour').classList.toggle('on',!M3.userPaused); });
@@ -680,21 +680,21 @@ $('#b-reset').addEventListener('click',()=>{ if(!M3.ok) return; M3.view='iso'; M
 $('#b-full').addEventListener('click',()=>{ const s=$('#scr-hub'); if(document.fullscreenElement){ document.exitFullscreen&&document.exitFullscreen(); } else if(s.requestFullscreen){ s.requestFullscreen().catch(()=>{}); } });
 $('#z-in').addEventListener('click',()=>zoomBy(0.85)); $('#z-out').addEventListener('click',()=>zoomBy(1.18));
 function zoomBy(f){ if(!M3.ok) return; M3.zoom=Math.min(1.9,Math.max(0.55,M3.zoom*f)); setCam(); }
-function setCam(){ if(!M3.ok) return; if(M3.view==='top'){ M3.camera.position.set(0,13.5*M3.zoom,0.01); } else { M3.camera.position.set(0,7.0*M3.zoom,8.6*M3.zoom); } M3.camera.lookAt(0,0,0); }
+function setCam(){ if(!M3.ok) return; if(M3.view==='top'){ M3.camera.position.set(0,15.5*M3.zoom,0.01); } else { M3.camera.position.set(0,8.4*M3.zoom,10.6*M3.zoom); } M3.camera.lookAt(0,-0.2,0); }
 $('#f-about').addEventListener('click',()=>go('about')); $('#f-lib').addEventListener('click',()=>go('lib')); $('#f-arch').addEventListener('click',()=>go('archive')); $('#f-go').addEventListener('click',()=>resumeChapter());
 
 // ---------- 3D 浮岛（Three.js + 离线高程 + 国界遮罩；失败则回落到 SVG） ----------
 const M3 = { ok:false, anchors:[], paused:false, userPaused:false, zoom:1, view:'iso', rot0:-0.3 };
 function init3D(){
   const box=$('#map3d'); if(!window.THREE||!box) return;
-  const img=new Image(); img.src='height.png?v=3';
+  const img=new Image(); img.src='height.png?v=4';
   img.onload=()=>{ try{ build3D(box,img); }catch(err){ console.warn('3D 回落到 SVG', err); box.hidden=true; $('#map').hidden=false; } };
   img.onerror=()=>{ box.hidden=true; $('#map').hidden=false; };
 }
 function build3D(box,img){
   const NW=img.width, NH=img.height; const cv=document.createElement('canvas'); cv.width=NW; cv.height=NH; const g=cv.getContext('2d'); g.drawImage(img,0,0); const data=g.getImageData(0,0,NW,NH).data;
   const hAt=(u,v)=>{ const x=Math.min(NW-1,Math.max(0,Math.round(u*(NW-1)))), y=Math.min(NH-1,Math.max(0,Math.round(v*(NH-1)))); return data[(y*NW+x)*4]; };
-  const W=10, D=10*MAPDATA.aspect; const BASE=-0.55, YS=1.05/255;
+  const W=10, D=10*MAPDATA.aspect; const BASE=-0.55, YS=0.8/255;
   const SEG=300; const pos=[], col=[], idx=[], land=[];
   const c0=[0.60,0.60,0.40], c1=[0.69,0.67,0.46], c2=[0.80,0.78,0.60], c3=[0.93,0.92,0.86], side=[0.16,0.18,0.11];
   function tint(h){ const m=h/255*6500; let a,b,t; if(m<250){a=c0;b=c1;t=m/250;} else if(m<1800){a=c1;b=c2;t=(m-250)/1550;} else if(m<4000){a=c2;b=c2;t=0;} else {a=c2;b=c3;t=Math.min(1,(m-4000)/1500);} return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t]; }

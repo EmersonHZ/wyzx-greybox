@@ -583,7 +583,7 @@ const BB={lon0:96,lon1:126,lat0:19,lat1:43}; const MY0=mercY(BB.lat1), MY1=mercY
 function uv(lon,lat){ return [(lon-BB.lon0)/(BB.lon1-BB.lon0), (mercY(lat)-MY0)/(MY1-MY0)]; }
 function init3D(){
   const box=$('#map3d'); if(!window.THREE||!box) return;
-  const img=new Image(); img.src='height.png';
+  const img=new Image(); img.src='height.png?v=2';
   img.onload=()=>{ try{ build3D(box,img); }catch(err){ console.warn('3D 回落到 SVG', err); box.hidden=true; $('#map').hidden=false; } };
   img.onerror=()=>{ box.hidden=true; $('#map').hidden=false; };
 }

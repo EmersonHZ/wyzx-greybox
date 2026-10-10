@@ -256,8 +256,7 @@ kbd{font-family:var(--mono);font-size:.78em;background:var(--panel2);border:1px 
 .stage{position:relative;min-height:100vh;overflow:hidden;background:#1b2017;color:var(--paper);--gold:#d9c38a;--gold-soft:#5a4d2a}
 .stage-bg{position:absolute;inset:0;background:#1b2017 url(art/bg.webp) center/cover no-repeat}
 .stage-bg::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 52%,rgba(14,18,12,.38) 0%,rgba(14,18,12,.12) 40%,rgba(10,12,8,.55) 100%)}
-.stage>*:not(.stage-bg){position:relative}
-.stage .stage-bg{position:absolute}
+.stage .stage-bg{position:absolute;z-index:0}
 .stage-top{display:flex;justify-content:space-between;align-items:flex-start;padding:28px 44px 0;z-index:5}
 .logo{display:flex;gap:14px;align-items:center}
 .logo .seal{width:46px;height:52px;border:1.5px solid var(--gold);color:var(--gold);font-family:var(--display);font-size:1.1rem;line-height:1.1;display:grid;place-items:center;text-align:center;padding:4px;letter-spacing:.05em;flex:none}
@@ -662,7 +661,7 @@ function showCard(n){ SEL=n.id; const c=$('#infocard'); c.hidden=false; const ch
   renderTimeline(); updateInset(); build3DMarkers(); }
 function renderTimeline(){ const host=$('#tl-nodes'); if(!host) return; host.innerHTML=''; const nodes=allNodes(); if(!SEL||!nodes.find(n=>n.id===SEL)){ const open=nodes.find(n=>n.st==='open'); SEL=open?open.id:nodes[0].id; }
   let selEl=null; nodes.forEach(n=>{ const d=el('button',{class:'tnode '+n.st+(SEL===n.id?' sel':''),onclick:()=>showCard(n)}, el('b',{},shortDate(n.date||'')), el('span',{},n.play?n.city+'·'+n.title:n.city+'·'+n.title)); host.append(d); if(SEL===n.id) selEl=d; });
-  const s=nodes.find(n=>n.id===SEL); $('#tl-cur').textContent=s?`${s.city} · ${s.date||fmtDate(s.idx)}`:''; if(selEl) selEl.scrollIntoView({block:'nearest',inline:'center'}); }
+  const s=nodes.find(n=>n.id===SEL); $('#tl-cur').textContent=s?`${s.city} · ${s.date||fmtDate(s.idx)}`:''; if(selEl) host.scrollLeft=Math.max(0, selEl.offsetLeft - host.clientWidth/2 + selEl.clientWidth/2); }
 function renderInset(){ const svg=$('#inset-svg'); if(!svg) return; svg.innerHTML=''; const ns='http://www.w3.org/2000/svg'; const mk=(t,a)=>{ const n=document.createElementNS(ns,t); for(const k in a) n.setAttribute(k,a[k]); return n; };
   for(const r of MAPDATA.china){ svg.append(mk('path',{class:'cn',d:'M'+r.map(p=>p.join(',')).join('L')+'Z'})); } for(const r of MAPDATA.rivers){ svg.append(mk('path',{class:'rv',d:'M'+r.p.map(p=>p.join(',')).join('L')})); }
   svg.append(mk('circle',{id:'inset-dot',r:14,fill:'#d0574a',stroke:'#f1e9d2','stroke-width':3})); updateInset(); }
